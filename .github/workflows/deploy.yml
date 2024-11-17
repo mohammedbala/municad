@@ -1,0 +1,50 @@
+name: CI/CD Pipeline for municad
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Include this only if your SSH key has a passphrase
+          # ssh-private-key-passphrase: ${{ secrets.SSH_PRIVATE_KEY_PASSPHRASE }}
+
+      - name: Add Droplet to Known Hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Droplet
+        run: |
+          ssh ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'EOF'
+            set -e
+
+
+            
+            # Add GitHub to known_hosts to prevent Host key verification failed
+            ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+
+            cd /var/www/municad
+            git stash
+
+            git pull origin master
+            
+            # Build and restart the app
+            npm run build
+            if pm2 describe municad-app > /dev/null; then
+              pm2 reload municad-app
+            else
+              pm2 start npm --name "municad-app" -- start
+            fi
+            pm2 save
+          EOF
