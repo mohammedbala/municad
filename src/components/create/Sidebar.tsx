@@ -5,8 +5,18 @@ import { useTrafficSigns } from './trafficSigns';
 export function Sidebar({ isOpen, onToggle }) {
   const { signs, loading, error } = useTrafficSigns();
 
-  const onDragStart = (e, sign) => {
+  const onDragStart = (e: React.DragEvent, sign: any) => {
     e.dataTransfer.setData('application/json', JSON.stringify(sign));
+    e.dataTransfer.effectAllowed = 'copy';
+
+    // Create a drag image
+    const dragImage = document.createElement('img');
+    dragImage.src = sign.url;
+    dragImage.className = 'w-8 h-8';
+    dragImage.style.opacity = '0.7';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 20, 20);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
   };
 
   const renderContent = () => {
@@ -66,6 +76,7 @@ export function Sidebar({ isOpen, onToggle }) {
         border-r-4 border-[#1E3A8A] 
         flex flex-col 
         overflow-hidden
+        flex-shrink-0
       `}
     >
       {/* Toggle Button */}

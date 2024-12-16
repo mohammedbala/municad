@@ -4,6 +4,10 @@ import { Link } from 'react-router-dom';
 import { SettingsModal } from './SettingsModal';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { supabase } from '../../lib/supabase';
+import type { ViewState } from 'react-map-gl';
+import type { CanvasManager } from './canvas/CanvasManager';
+import type { DrawnLine, TitleBlockData } from './types';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibW9iYWxhIiwiYSI6ImNsN2MzdnUyczBja3YzcnBoMmttczNrNmUifQ.EuKfnG_-CrRpAGHPMcC93w';
 
@@ -15,18 +19,119 @@ interface SearchResult {
 
 interface EditorNavbarProps {
   onLocationChange: (coords: { longitude: number; latitude: number; zoom: number }) => void;
-  onSave: (isPublishing?: boolean) => Promise<boolean>;
-  isSaving: boolean;
-  pageContainerRef: React.RefObject<HTMLDivElement>;
+  canvasManager: CanvasManager | null;
+  viewState: ViewState;
+  titleBlockData: TitleBlockData;
   selectedPageSize: string;
+  notes: string;
+  currentProjectId: string | null;
+  setCurrentProjectId: (id: string | null) => void;
+  drawnLines: DrawnLine[];
+  pageContainerRef: React.RefObject<HTMLDivElement>;
+}
+
+interface UseProjectSaveProps {
+  canvasManager: CanvasManager | null;
+  viewState: ViewState;
+  titleBlockData: TitleBlockData;
+  selectedPageSize: string;
+  notes: string;
+  currentProjectId: string | null;
+  setCurrentProjectId: (id: string | null) => void;
+  drawnLines: DrawnLine[];
+}
+
+const USER_ID = '09f43a49-a67f-4945-9fac-909f333f8d8b';
+
+export function useProjectSave({
+  canvasManager,
+  viewState,
+  titleBlockData,
+  selectedPageSize,
+  notes,
+  currentProjectId,
+  setCurrentProjectId,
+  drawnLines
+}: UseProjectSaveProps) {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const saveProject = async (isPublishing = false) => {
+    if (!canvasManager) return false;
+
+    try {
+      setIsSaving(true);
+
+      // Get the current state from the render manager
+      const renderState = canvasManager.getRenderManager().getState();
+
+      const projectData = {
+        title: titleBlockData.projectTitle,
+        viewState: {
+          longitude: viewState.longitude,
+          latitude: viewState.latitude,
+          zoom: viewState.zoom,
+          pitch: viewState.pitch,
+          bearing: viewState.bearing,
+          padding: viewState.padding
+        },
+        selectedPageSize,
+        titleBlockData,
+        notes,
+        canvasState: {
+          shapes: drawnLines,
+          selectedShape: renderState.selectedShape
+        },
+        isPublished: isPublishing,
+        lastModified: new Date().toISOString()
+      };
+
+      if (currentProjectId) {
+        const { error } = await supabase
+          .from('projects')
+          .update({
+            project_data: projectData,
+            user_id: USER_ID
+          })
+          .eq('id', currentProjectId);
+
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('projects')
+          .insert([{
+            project_data: projectData,
+            user_id: USER_ID
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        setCurrentProjectId(data.id);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error saving project:', error);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { saveProject, isSaving };
 }
 
 export function EditorNavbar({ 
-  onLocationChange, 
-  onSave, 
-  isSaving,
-  pageContainerRef,
-  selectedPageSize 
+  onLocationChange,
+  canvasManager,
+  viewState,
+  titleBlockData,
+  selectedPageSize,
+  notes,
+  currentProjectId,
+  setCurrentProjectId,
+  drawnLines,
+  pageContainerRef
 }: EditorNavbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +142,17 @@ export function EditorNavbar({
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
+
+  const { saveProject, isSaving } = useProjectSave({
+    canvasManager,
+    viewState,
+    titleBlockData,
+    selectedPageSize,
+    notes,
+    currentProjectId,
+    setCurrentProjectId,
+    drawnLines
+  });
 
   useEffect(() => {
     // Handle clicks outside of search results and export menu
@@ -145,11 +261,24 @@ export function EditorNavbar({
   };
 
   const handleSave = async (isPublishing = false) => {
-    const result = await onSave(isPublishing);
-    if (result) {
-      alert(isPublishing ? 'Project published successfully!' : 'Project saved successfully!');
-    } else {
-      alert(isPublishing ? 'Failed to publish project' : 'Failed to save project');
+    if (!canvasManager) {
+      alert('Cannot save: Canvas is not initialized');
+      return;
+    }
+
+    try {
+      const success = await saveProject(isPublishing);
+      
+      if (success) {
+        alert(isPublishing ? 'Project published successfully!' : 'Project saved successfully!');
+      }
+    } catch (error) {
+      console.error('Error saving project:', error);
+      alert(
+        isPublishing 
+          ? 'Failed to publish project. Please try again later.' 
+          : 'Failed to save project. Please try again later.'
+      );
     }
   };
 

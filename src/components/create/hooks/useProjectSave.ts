@@ -1,94 +1,62 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { ViewState } from 'react-map-gl';
-import type MapboxDraw from '@mapbox/mapbox-gl-draw';
-import type { Map } from 'mapbox-gl';
-import type { TrafficSign } from '../trafficSigns';
-
-interface TitleBlockData {
-  projectTitle: string;
-  projectSubtitle: string;
-  designer: string;
-  checker: string;
-  scale: string;
-  date: string;
-  drawingNumber: string;
-}
-
-interface TextLabel {
-  id: string;
-  text: string;
-  size: number;
-  color: string;
-  coordinates: [number, number];
-}
+import type { CanvasManager } from '../canvas/CanvasManager';
+import type { DrawnLine, TitleBlockData } from '../types';
 
 interface UseProjectSaveProps {
-  drawRef: React.RefObject<MapboxDraw>;
-  mapRef: React.RefObject<Map>;
+  canvasManager: CanvasManager | null;
   viewState: ViewState;
   titleBlockData: TitleBlockData;
-  lineColor: string;
-  lineStyle: string;
-  fillPattern: string;
-  signMarkers: Array<{
-    id: string;
-    sign: TrafficSign;
-    lngLat: { lng: number; lat: number; };
-  }>;
   selectedPageSize: string;
   notes: string;
   currentProjectId: string | null;
   setCurrentProjectId: (id: string | null) => void;
-  textLabels: TextLabel[];
+  drawnLines: DrawnLine[];
 }
 
 const USER_ID = '09f43a49-a67f-4945-9fac-909f333f8d8b';
 
 export function useProjectSave({
-  drawRef,
-  mapRef,
+  canvasManager,
   viewState,
   titleBlockData,
-  lineColor,
-  lineStyle,
-  fillPattern,
-  signMarkers,
   selectedPageSize,
   notes,
   currentProjectId,
   setCurrentProjectId,
-  textLabels
+  drawnLines
 }: UseProjectSaveProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const saveProject = async (isPublishing = false) => {
+    if (!canvasManager) {
+      console.error('Canvas manager is not initialized');
+      throw new Error('Canvas manager is not initialized');
+    }
+
     try {
       setIsSaving(true);
 
+      const renderState = canvasManager.getRenderManager().getState();
       const projectData = {
         title: titleBlockData.projectTitle,
-        features: drawRef.current?.getAll() || {
-          type: "FeatureCollection",
-          features: []
-        },
-        lineColor,
-        lineStyle,
         viewState: {
-          ...viewState,
-          zoom: mapRef.current?.getZoom() || viewState.zoom,
-          pitch: mapRef.current?.getPitch() || viewState.pitch,
-          bearing: mapRef.current?.getBearing() || viewState.bearing,
-          latitude: mapRef.current?.getCenter().lat || viewState.latitude,
-          longitude: mapRef.current?.getCenter().lng || viewState.longitude,
-          padding: mapRef.current?.getPadding() || viewState.padding
+          longitude: viewState.longitude,
+          latitude: viewState.latitude,
+          zoom: viewState.zoom,
+          pitch: viewState.pitch || 0,
+          bearing: viewState.bearing || 0,
+          padding: viewState.padding || { top: 0, bottom: 0, left: 0, right: 0 }
         },
-        fillPattern,
-        signMarkers,
         selectedPageSize,
         titleBlockData,
         notes,
-        textLabels
+        canvasState: {
+          shapes: drawnLines,
+          selectedShape: renderState.selectedShape
+        },
+        lastModified: new Date().toISOString()
       };
 
       if (currentProjectId) {
@@ -96,9 +64,11 @@ export function useProjectSave({
           .from('projects')
           .update({
             project_data: projectData,
-            user_id: USER_ID
+            user_id: USER_ID,
+            updated_at: new Date().toISOString()
           })
-          .eq('id', currentProjectId);
+          .eq('id', currentProjectId)
+          .select('id, project_data, user_id, created_at, updated_at');
 
         if (error) throw error;
       } else {
@@ -106,9 +76,11 @@ export function useProjectSave({
           .from('projects')
           .insert([{
             project_data: projectData,
-            user_id: USER_ID
+            user_id: USER_ID,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }])
-          .select()
+          .select('id, project_data, user_id, created_at, updated_at')
           .single();
 
         if (error) throw error;
@@ -117,8 +89,8 @@ export function useProjectSave({
 
       return true;
     } catch (error) {
-      console.error('Error saving project:', error);
-      return false;
+      console.error('Detailed save error:', error);
+      throw error;
     } finally {
       setIsSaving(false);
     }

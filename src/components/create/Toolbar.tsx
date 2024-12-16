@@ -5,25 +5,27 @@ import {
   Square,
   Hexagon, 
   Circle, 
-  ArrowRight as Arrow, 
+  ArrowRight,
   Ruler,
   Eraser,
   Hand,
   StickyNote,
   FileText,
   MinusSquare,
-  Trash2
+  Trash2,
+  MousePointer
 } from 'lucide-react';
 
 const tools = [
+  { id: 'select', icon: MousePointer, label: 'Select' },
   { id: 'pan', icon: Hand, label: 'Pan' },
   { id: 'line', icon: MinusSquare, label: 'Draw Line' },
+  { id: 'arrow', icon: ArrowRight, label: 'Draw Arrow' },
   { id: 'rectangle', icon: Square, label: 'Rectangle' },
   { id: 'polygon', icon: Hexagon, label: 'Polygon' },
   { id: 'draw', icon: Pencil, label: 'Draw' },
   { id: 'text', icon: Type, label: 'Text' },
   { id: 'circle', icon: Circle, label: 'Circle' },
-  { id: 'arrow', icon: Arrow, label: 'Arrow' },
   { id: 'measure', icon: Ruler, label: 'Measure' },
   { id: 'eraser', icon: Eraser, label: 'Eraser' },
   { id: 'notes', icon: StickyNote, label: 'Notes' },
@@ -36,6 +38,17 @@ const pageSizes = [
   { id: '30x42', label: '42" × 30" (Landscape)' },
 ];
 
+const fonts = [
+  { id: 'Arial', label: 'Arial' },
+  { id: 'Helvetica', label: 'Helvetica' },
+  { id: 'Times New Roman', label: 'Times New Roman' },
+  { id: 'Georgia', label: 'Georgia' },
+  { id: 'Courier New', label: 'Courier New' },
+  { id: 'Verdana', label: 'Verdana' },
+  { id: 'Tahoma', label: 'Tahoma' },
+  { id: 'Impact', label: 'Impact' }
+];
+
 interface ToolbarProps {
   selectedTool: string | null;
   onToolSelect: (tool: string) => void;
@@ -45,6 +58,12 @@ interface ToolbarProps {
   onLineColorChange: (color: string) => void;
   fillColor: string;
   onFillColorChange: (color: string) => void;
+  fontColor: string;
+  onFontColorChange: (color: string) => void;
+  lineThickness: number;
+  onLineThicknessChange: (thickness: number) => void;
+  fontSize: number;
+  onFontSizeChange: (size: number) => void;
   selectedFeatureId: string | null;
   selectedTextId: string | null;
   onDeleteFeature: () => void;
@@ -59,11 +78,19 @@ export function Toolbar({
   onLineColorChange,
   fillColor,
   onFillColorChange,
+  fontColor,
+  onFontColorChange,
+  lineThickness,
+  onLineThicknessChange,
+  fontSize,
+  onFontSizeChange,
   selectedFeatureId,
   selectedTextId,
   onDeleteFeature
 }: ToolbarProps) {
   const hasSelection = selectedFeatureId !== null || selectedTextId !== null;
+  const isTextSelected = selectedTextId !== null;
+  const showTextControls = selectedTool === 'text' || isTextSelected;
 
   return (
     <div className="mx-4">
@@ -106,6 +133,55 @@ export function Toolbar({
                   onChange={(e) => onFillColorChange(e.target.value)}
                   className="w-8 h-8 rounded cursor-pointer"
                   title="Fill Color"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Thickness:</span>
+                <input
+                  type="number"
+                  value={lineThickness}
+                  onChange={(e) => onLineThicknessChange(Number(e.target.value))}
+                  min={0.25}
+                  max={10}
+                  step={0.25}
+                  className="w-16 px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+            </div>
+          )}
+
+          {showTextControls && (
+            <div className="flex items-center space-x-4 border-l-2 border-gray-200 pl-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Font:</span>
+                <select
+                  className="px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB] min-w-[120px]"
+                >
+                  {fonts.map(font => (
+                    <option key={font.id} value={font.id}>{font.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Size:</span>
+                <input
+                  type="number"
+                  value={fontSize}
+                  onChange={(e) => onFontSizeChange(Number(e.target.value))}
+                  min={8}
+                  max={72}
+                  step={1}
+                  className="w-16 px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Color:</span>
+                <input
+                  type="color"
+                  value={fontColor}
+                  onChange={(e) => onFontColorChange(e.target.value)}
+                  className="w-8 h-8 rounded cursor-pointer"
+                  title="Font Color"
                 />
               </div>
             </div>

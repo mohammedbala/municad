@@ -10,6 +10,7 @@ import { SignIn } from './components/SignIn';
 import { AuthCallback } from './components/AuthCallback';
 import { Pricing } from './components/Pricing';
 import { UserHome } from './components/UserHome';
+import { Documentation } from './components/Documentation';
 
 function HomePage() {
   return (
@@ -33,6 +34,7 @@ function App() {
         <Route path="/create" element={<Editor />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/docs" element={<Documentation />} />
       </Routes>
     </Router>
   );

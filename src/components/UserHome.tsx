@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import Map from 'react-map-gl';
 import { supabase } from '../lib/supabase';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { DrawnLine, TitleBlockData } from './create/types';
+import { CanvasManager } from './create/canvas/CanvasManager';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibW9iYWxhIiwiYSI6ImNsN2MzdnUyczBja3YzcnBoMmttczNrNmUifQ.EuKfnG_-CrRpAGHPMcC93w';
 const FIXED_USER_ID = '09f43a49-a67f-4945-9fac-909f333f8d8b';
@@ -19,30 +21,25 @@ const DEFAULT_VIEW_STATE = {
 interface Project {
   id: string;
   created_at: string;
+  updated_at: string;
   project_data: {
     title: string;
-    viewState?: {
+    viewState: {
       longitude: number;
       latitude: number;
       zoom: number;
       pitch: number;
       bearing: number;
+      padding: { top: number; bottom: number; left: number; right: number };
     };
-    features?: {
-      type: string;
-      features: any[];
+    selectedPageSize: string;
+    titleBlockData: TitleBlockData;
+    notes: string;
+    canvasState: {
+      shapes: DrawnLine[];
+      selectedShape: DrawnLine | null;
     };
-    signMarkers?: Array<{
-      id: string;
-      sign: {
-        url: string;
-        name: string;
-      };
-      lngLat: {
-        lng: number;
-        lat: number;
-      };
-    }>;
+    lastModified: string;
   };
 }
 
@@ -146,25 +143,43 @@ export function UserHome() {
                     mapStyle="mapbox://styles/mapbox/streets-v12"
                     mapboxAccessToken={MAPBOX_TOKEN}
                     interactive={false}
-                  >
-                    {project.project_data?.signMarkers?.map((marker) => (
-                      <div
-                        key={marker.id}
-                        style={{
-                          position: 'absolute',
-                          left: '50%',
-                          top: '50%',
-                          transform: 'translate(-50%, -50%)'
-                        }}
-                      >
-                        <img
-                          src={marker.sign.url}
-                          alt={marker.sign.name}
-                          className="w-6 h-6"
-                        />
-                      </div>
-                    ))}
-                  </Map>
+                    onLoad={(evt) => {
+                      // Get the actual Mapbox map instance from the event
+                      const map = evt.target;
+                      
+                      // Create and position canvas overlay
+                      const canvas = document.createElement('canvas');
+                      canvas.style.position = 'absolute';
+                      canvas.style.top = '0';
+                      canvas.style.left = '0';
+                      canvas.style.width = '100%';
+                      canvas.style.height = '100%';
+                      canvas.style.pointerEvents = 'none';
+                      
+                      // Add canvas to map container
+                      const container = map.getContainer();
+                      container.appendChild(canvas);
+                      
+                      // Initialize canvas manager
+                      const canvasManager = new CanvasManager(canvas, map);
+                      
+                      // Set the shapes from project data
+                      if (project.project_data?.canvasState?.shapes) {
+                        const renderManager = canvasManager.getRenderManager();
+                        renderManager.setShapes(
+                          project.project_data.canvasState.shapes,
+                          project.project_data.canvasState.selectedShape?.id || null
+                        );
+                        renderManager.render();
+                      }
+
+                      // Clean up on unmount
+                      return () => {
+                        canvasManager.cleanup();
+                        container.removeChild(canvas);
+                      };
+                    }}
+                  />
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/20" />
                 </div>
 
@@ -186,7 +201,7 @@ export function UserHome() {
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Clock className="w-4 h-4 mr-2" />
-                      <span>Modified {formatDate(project.created_at)}</span>
+                      <span>Modified {formatDate(project.updated_at || project.created_at)}</span>
                     </div>
                   </div>
                 </div>
