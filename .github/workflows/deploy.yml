@@ -17,8 +17,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Include this only if your SSH key has a passphrase
-          # ssh-private-key-passphrase: ${{ secrets.SSH_PRIVATE_KEY_PASSPHRASE }}
 
       - name: Add Droplet to Known Hosts
         run: |
@@ -28,23 +26,20 @@ jobs:
         run: |
           ssh ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'EOF'
             set -e
-
-
-            
-            # Add GitHub to known_hosts to prevent Host key verification failed
             ssh-keyscan -H github.com >> ~/.ssh/known_hosts
 
             cd /var/www/municad
             git stash
-
             git pull origin main
-            
-            # Build and restart the app
+
+            npm install
             npm run build
+
             if pm2 describe municad-app > /dev/null; then
               pm2 reload municad-app
             else
               pm2 start npm --name "municad-app" -- start
             fi
+
             pm2 save
           EOF

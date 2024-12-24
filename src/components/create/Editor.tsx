@@ -192,6 +192,14 @@ export function Editor() {
     console.log('Canvas manager state updated:', canvasManager);
   }, [canvasManager]);
 
+  const handleToolSelect = (tool: string) => {
+    if (tool === 'notes') {
+      setShowNotesPanel(!showNotesPanel);
+    } else {
+      setSelectedTool(tool);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <EditorNavbar 
@@ -214,7 +222,7 @@ export function Editor() {
         <div className="flex-1 flex flex-col min-w-0">
           <Toolbar
             selectedTool={selectedTool}
-            onToolSelect={setSelectedTool}
+            onToolSelect={handleToolSelect}
             selectedPageSize={selectedPageSize}
             onPageSizeChange={setSelectedPageSize}
             lineColor={lineColor}
@@ -267,14 +275,12 @@ export function Editor() {
                 data={titleBlockData}
                 onChange={setTitleBlockData}
               />
-              {showNotesPanel && (
-                <NotesPanel 
-                  isOpen={showNotesPanel} 
-                  onClose={() => setShowNotesPanel(false)}
-                  notes={notes}
-                  onNotesChange={setNotes}
-                />
-              )}
+              <NotesPanel 
+                isOpen={showNotesPanel}
+                onClose={() => setShowNotesPanel(false)}
+                notes={notes}
+                onNotesChange={setNotes}
+              />
             </div>
           </div>
         </div>

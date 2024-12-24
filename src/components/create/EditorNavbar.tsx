@@ -285,7 +285,7 @@ export function EditorNavbar({
   return (
     <>
       <div className="bg-white border-b-8 border-[#1E3A8A] py-2">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-8">
               <Link to="/" className="flex items-center space-x-2">

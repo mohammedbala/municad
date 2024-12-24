@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 interface NotesPanelProps {
@@ -9,10 +9,26 @@ interface NotesPanelProps {
 }
 
 export function NotesPanel({ isOpen, onClose, notes, onNotesChange }: NotesPanelProps) {
+  const [height, setHeight] = useState('100%');
+
+  useEffect(() => {
+    if (isOpen) {
+      // Find the map container and calculate its height
+      const mapContainer = document.querySelector('.mapboxgl-map');
+      if (mapContainer) {
+        const mapHeight = mapContainer.clientHeight;
+        setHeight(`${mapHeight}px`);
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="absolute top-0 right-0 h-[calc(100%-120px)] w-80 bg-white border-l-4 border-[#1E3A8A] shadow-[-4px_0px_0px_0px_rgba(30,58,138,1)]">
+    <div 
+      className="absolute top-0 right-0 w-80 bg-white border-l-4 border-[#1E3A8A] shadow-[-4px_0px_0px_0px_rgba(30,58,138,1)]"
+      style={{ height }}
+    >
       <div className="flex items-center justify-between p-4 border-b-4 border-[#1E3A8A]">
         <h3 className="font-bold text-lg text-[#1E3A8A]">Notes</h3>
         <button

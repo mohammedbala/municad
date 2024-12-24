@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
@@ -12,7 +12,7 @@ import { Pricing } from './components/Pricing';
 import { UserHome } from './components/UserHome';
 import { Documentation } from './components/Documentation';
 
-function HomePage() {
+function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
@@ -29,7 +29,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<Editor />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/home" element={<UserHome />} />
         <Route path="/create" element={<Editor />} />
         <Route path="/signin" element={<SignIn />} />
