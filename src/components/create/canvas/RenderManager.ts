@@ -31,7 +31,7 @@ export class RenderManager {
   }
 
   public render() {
-    console.log('RenderManager.render() - Current shapes:', this.shapes);
+    // console.log('RenderManager.render() - Current shapes:', this.shapes);
     
     this.canvasManager.clear();
 
@@ -44,7 +44,7 @@ export class RenderManager {
 
     // Render selected shape last with selection UI
     if (this.selectedShape) {
-      console.log('RenderManager: Rendering selected shape:', this.selectedShape);
+      // console.log('RenderManager: Rendering selected shape:', this.selectedShape);
       this.renderShape(this.selectedShape);
       const selectTool = this.canvasManager.toolManager.getTool('select');
       if (selectTool) {
@@ -58,7 +58,7 @@ export class RenderManager {
   }
 
   public renderShape(shape: DrawnLine) {
-    console.log('RenderManager: Rendering shape:', shape);
+    // console.log('RenderManager: Rendering shape:', shape);
 
     switch (shape.type) {
       case 'line':

@@ -103,7 +103,7 @@ export class CanvasManager {
     const lngLat = this.map.unproject([x, y]);
     
     try {
-      const signData = JSON.parse(e.dataTransfer!.getData('application/json')) as IconItem;
+      const signData = JSON.parse(e.dataTransfer!.getData('application/json'));
       console.log('Drop event received with data:', signData); // Debug log
 
       const point = {
@@ -114,8 +114,8 @@ export class CanvasManager {
       };
 
       // Ensure all required data is present
-      if (!signData.path) {
-        console.error('Sign path is missing');
+      if (!signData.url) {
+        console.error('Sign URL is missing');
         return;
       }
 
@@ -128,9 +128,9 @@ export class CanvasManager {
 
       // Use the SignTool to handle the drop
       (signTool as SignTool).handleDrop(point, {
-        url: signData.path,
+        url: signData.url,
         name: signData.name || 'Unknown Sign',
-        size: 64
+        size: signData.size || 64
       });
 
     } catch (error) {
@@ -189,23 +189,9 @@ export class CanvasManager {
   }
 
   public drawText(point: Point, text: string, color: string, size: number = 16, fontColor?: string, fillColor?: string) {
-    console.log('CanvasManager: Drawing text:', {
-      point,
-      text,
-      color,
-      size,
-      fontColor,
-      fillColor
-    });
-
-    if (!text) {
-      console.warn('CanvasManager: Empty text provided');
-      return;
-    }
+    if (!text) return;
 
     const projected = this.map.project([point.lng, point.lat]);
-    
-    this.ctx.save();
     this.ctx.font = `${size}px Arial`;
     
     // Draw background if fillColor is provided
@@ -226,7 +212,6 @@ export class CanvasManager {
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(text, projected.x, projected.y);
-    this.ctx.restore();
   }
 
   public drawArrow(points: Point[], color: string, thickness: number = 1.0) {

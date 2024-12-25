@@ -118,21 +118,30 @@ export function Editor() {
     };
   }, []);
 
-  const handleShapeComplete = (shapeData: any) => {
-    console.log('handleShapeComplete called with data:', shapeData);
-    
+  const handleShapeComplete = (type: string, points: any[], additionalData?: any) => {
+    console.log('handleShapeComplete called:', { type, points, additionalData });
     const newShape: DrawnLine = {
       id: crypto.randomUUID(),
-      type: shapeData.type,
-      points: shapeData.points,
-      color: shapeData.color || lineColor,
-      fillColor: shapeData.type === 'rectangle' || shapeData.type === 'polygon' ? fillColor : undefined,
-      fontColor: shapeData.type === 'text' ? (shapeData.fontColor || fontColor) : undefined,
-      thickness: shapeData.thickness || lineThickness,
-      size: shapeData.type === 'text' ? (shapeData.size || fontSize) : undefined,
-      text: shapeData.text,
-      hatchPattern: shapeData.type === 'rectangle' || shapeData.type === 'polygon' ? hatchPattern : undefined,
+      type: type as DrawnLine['type'],
+      points,
+      color: lineColor,
+      fillColor: type === 'rectangle' || type === 'polygon' ? fillColor : undefined,
+      fontColor: type === 'text' ? fontColor : undefined,
+      thickness: lineThickness,
+      size: type === 'text' ? fontSize : undefined,
+      hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
+      ...additionalData
     };
+
+    if (type === 'dimension') {
+      const distance = calculateDistance(
+        points[0].lat,
+        points[0].lng,
+        points[1].lat,
+        points[1].lng
+      );
+      newShape.measurement = formatMeasurement(distance, units);
+    }
 
     console.log('Adding new shape:', newShape);
     setDrawnLines(prev => {
@@ -141,10 +150,8 @@ export function Editor() {
       setStableDrawnLines(updated);
       return updated;
     });
-    
     setSelectedTool('select');
     setSelectedLineId(newShape.id);
-    setSelectedShape(newShape);
   };
 
   const handleShapeUpdate = (updatedShape: DrawnLine) => {
@@ -192,7 +199,10 @@ export function Editor() {
         setDrawnLines(prev => {
           const updated = prev.map(line => 
             line.id === selectedLineId 
-              ? { ...line, fillColor: color }
+              ? { 
+                  ...line, 
+                  fillColor: hatchPattern === 'transparent' ? 'transparent' : color 
+                }
               : line
           );
           linesRef.current = updated;
@@ -203,7 +213,7 @@ export function Editor() {
         // Emit the update event for the SelectTool
         eventManager.emit(EVENTS.SHAPE_UPDATE, {
           id: selectedLineId,
-          fillColor: color
+          fillColor: hatchPattern === 'transparent' ? 'transparent' : color
         });
       }
     }
