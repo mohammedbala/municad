@@ -14,7 +14,7 @@ export class SelectionBox {
     this.ctx = ctx;
   }
 
-  drawBox(bounds: { minX: number; minY: number; maxX: number; maxY: number }) {
+  drawBox(bounds: { minX: number; minY: number; maxX: number; maxY: number }, points?: { x: number; y: number }[]) {
     this.ctx.save();
     
     // Draw selection rectangle
@@ -29,18 +29,16 @@ export class SelectionBox {
       bounds.maxY - bounds.minY + this.padding * 2
     );
 
-    // Draw resize handles
+    // Draw resize handles at vertices if points are provided
     this.ctx.setLineDash([]);
-    const handles = [
-      { x: bounds.minX - this.padding, y: bounds.minY - this.padding }, // NW
-      { x: bounds.maxX + this.padding, y: bounds.minY - this.padding }, // NE
-      { x: bounds.maxX + this.padding, y: bounds.maxY + this.padding }, // SE
-      { x: bounds.minX - this.padding, y: bounds.maxY + this.padding }  // SW
-    ];
-
-    handles.forEach(handle => {
-      this.drawHandle(handle.x, handle.y);
-    });
+    if (points && points.length > 0) {
+      // Always exclude the last point for polygons as it's the closing point
+      const pointsToUse = points.slice(0, -1);
+      
+      pointsToUse.forEach(point => {
+        this.drawHandle(point.x, point.y);
+      });
+    }
 
     this.ctx.restore();
   }

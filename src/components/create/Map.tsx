@@ -178,18 +178,6 @@ export function MapComponent({
           'line-opacity': 0.8
         }
       });
-
-      map.addLayer({
-        'id': 'building-fills',
-        'source': 'composite',
-        'source-layer': 'building',
-        'filter': ['==', 'extrude', 'true'],
-        'type': 'fill',
-        'paint': {
-          'fill-color': '#94a3b8', // Slate color for building fills
-          'fill-opacity': 0.2
-        }
-      }, 'building-outlines'); // Add fills below the outlines
     });
 
     return () => {

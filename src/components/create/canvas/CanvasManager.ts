@@ -189,9 +189,23 @@ export class CanvasManager {
   }
 
   public drawText(point: Point, text: string, color: string, size: number = 16, fontColor?: string, fillColor?: string) {
-    if (!text) return;
+    console.log('CanvasManager: Drawing text:', {
+      point,
+      text,
+      color,
+      size,
+      fontColor,
+      fillColor
+    });
+
+    if (!text) {
+      console.warn('CanvasManager: Empty text provided');
+      return;
+    }
 
     const projected = this.map.project([point.lng, point.lat]);
+    
+    this.ctx.save();
     this.ctx.font = `${size}px Arial`;
     
     // Draw background if fillColor is provided
@@ -212,6 +226,7 @@ export class CanvasManager {
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(text, projected.x, projected.y);
+    this.ctx.restore();
   }
 
   public drawArrow(points: Point[], color: string, thickness: number = 1.0) {

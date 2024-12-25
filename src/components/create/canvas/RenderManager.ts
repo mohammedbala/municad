@@ -31,9 +31,8 @@ export class RenderManager {
   }
 
   public render() {
-    // console.log('RenderManager.render()');
-    // if (!this.needsRender) return;
-
+    console.log('RenderManager.render() - Current shapes:', this.shapes);
+    
     this.canvasManager.clear();
 
     // Render non-selected shapes
@@ -45,6 +44,7 @@ export class RenderManager {
 
     // Render selected shape last with selection UI
     if (this.selectedShape) {
+      console.log('RenderManager: Rendering selected shape:', this.selectedShape);
       this.renderShape(this.selectedShape);
       const selectTool = this.canvasManager.toolManager.getTool('select');
       if (selectTool) {
@@ -58,7 +58,7 @@ export class RenderManager {
   }
 
   public renderShape(shape: DrawnLine) {
-    // console.log('RenderManager: Rendering shape:', shape);
+    console.log('RenderManager: Rendering shape:', shape);
 
     switch (shape.type) {
       case 'line':
@@ -95,16 +95,28 @@ export class RenderManager {
         );
         break;
       case 'text':
-        if (shape.text) {
-          this.canvasManager.drawText(
-            shape.points[0],
-            shape.text,
-            shape.color,
-            shape.size,
-            shape.fontColor,
-            shape.fillColor
-          );
+        if (!shape.text) {
+          console.warn('RenderManager: Text shape missing text property:', shape);
+          return;
         }
+
+        console.log('RenderManager: Drawing text:', {
+          point: shape.points[0],
+          text: shape.text,
+          color: shape.color,
+          size: shape.size,
+          fontColor: shape.fontColor,
+          fillColor: shape.fillColor
+        });
+
+        this.canvasManager.drawText(
+          shape.points[0],
+          shape.text,
+          shape.color,
+          shape.size || 16,
+          shape.fontColor || shape.color,
+          shape.fillColor
+        );
         break;
       case 'sign':
         if (!shape.signData) {

@@ -16,6 +16,7 @@ import { CanvasManager } from './canvas/CanvasManager';
 import { SettingsModal } from './SettingsModal';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { ContextMenu } from './ContextMenu';
 
 export function Editor() {
   const [searchParams] = useSearchParams();
@@ -55,6 +56,12 @@ export function Editor() {
   const [hatchPattern, setHatchPattern] = useState('none');
   const [units, setUnits] = useState<'imperial' | 'metric'>('imperial');
   const [isSettingsOpen, setSettingsOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    mapCoords?: { lat: number; lng: number };
+  } | null>(null);
+  const [clipboard, setClipboard] = useState<DrawnLine | null>(null);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -111,30 +118,21 @@ export function Editor() {
     };
   }, []);
 
-  const handleShapeComplete = (type: string, points: any[], additionalData?: any) => {
-    console.log('handleShapeComplete called:', { type, points, additionalData });
+  const handleShapeComplete = (shapeData: any) => {
+    console.log('handleShapeComplete called with data:', shapeData);
+    
     const newShape: DrawnLine = {
       id: crypto.randomUUID(),
-      type: type as DrawnLine['type'],
-      points,
-      color: lineColor,
-      fillColor: type === 'rectangle' || type === 'polygon' ? fillColor : undefined,
-      fontColor: type === 'text' ? fontColor : undefined,
-      thickness: lineThickness,
-      size: type === 'text' ? fontSize : undefined,
-      hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
-      ...additionalData
+      type: shapeData.type,
+      points: shapeData.points,
+      color: shapeData.color || lineColor,
+      fillColor: shapeData.type === 'rectangle' || shapeData.type === 'polygon' ? fillColor : undefined,
+      fontColor: shapeData.type === 'text' ? (shapeData.fontColor || fontColor) : undefined,
+      thickness: shapeData.thickness || lineThickness,
+      size: shapeData.type === 'text' ? (shapeData.size || fontSize) : undefined,
+      text: shapeData.text,
+      hatchPattern: shapeData.type === 'rectangle' || shapeData.type === 'polygon' ? hatchPattern : undefined,
     };
-
-    if (type === 'dimension') {
-      const distance = calculateDistance(
-        points[0].lat,
-        points[0].lng,
-        points[1].lat,
-        points[1].lng
-      );
-      newShape.measurement = formatMeasurement(distance, units);
-    }
 
     console.log('Adding new shape:', newShape);
     setDrawnLines(prev => {
@@ -143,16 +141,21 @@ export function Editor() {
       setStableDrawnLines(updated);
       return updated;
     });
+    
     setSelectedTool('select');
     setSelectedLineId(newShape.id);
+    setSelectedShape(newShape);
   };
 
   const handleShapeUpdate = (updatedShape: DrawnLine) => {
-    setDrawnLines(prev => 
-      prev.map(shape => 
+    setDrawnLines(prev => {
+      const updated = prev.map(shape => 
         shape.id === updatedShape.id ? updatedShape : shape
-      )
-    );
+      );
+      linesRef.current = updated;
+      setStableDrawnLines(updated);
+      return updated;
+    });
   };
 
   const handleFontSizeChange = (size: number) => {
@@ -176,6 +179,31 @@ export function Editor() {
         eventManager.emit(EVENTS.SHAPE_UPDATE, {
           id: selectedLineId,
           fontColor: color
+        });
+      }
+    }
+  };
+
+  const handleFillColorChange = (color: string) => {
+    setFillColor(color);
+    if (selectedLineId) {
+      const selectedShape = drawnLines.find(line => line.id === selectedLineId);
+      if (selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon')) {
+        setDrawnLines(prev => {
+          const updated = prev.map(line => 
+            line.id === selectedLineId 
+              ? { ...line, fillColor: color }
+              : line
+          );
+          linesRef.current = updated;
+          setStableDrawnLines(updated);
+          return updated;
+        });
+
+        // Emit the update event for the SelectTool
+        eventManager.emit(EVENTS.SHAPE_UPDATE, {
+          id: selectedLineId,
+          fillColor: color
         });
       }
     }
@@ -234,6 +262,12 @@ export function Editor() {
     if (tool === 'notes') {
       setShowNotesPanel(!showNotesPanel);
     } else {
+      // Reset to default values when switching to a drawing tool
+      if (['line', 'arrow', 'rectangle', 'polygon', 'draw'].includes(tool)) {
+        setLineColor('#1E3A8A');  // Default blue
+        setFillColor('#ffffff');  // Default white
+        setLineThickness(1.0);    // Default thickness
+      }
       setSelectedTool(tool);
     }
   };
@@ -469,8 +503,175 @@ export function Editor() {
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Get map coordinates from click position
+    if (!mapRef.current) return;
+    
+    const rect = mapRef.current.getCanvas().getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const lngLat = mapRef.current.unproject([x, y]);
+    
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      mapCoords: {
+        lat: lngLat.lat,
+        lng: lngLat.lng
+      }
+    });
+  };
+
+  const handleCopy = () => {
+    if (selectedShape) {
+      setClipboard({ ...selectedShape, id: crypto.randomUUID() });
+    }
+  };
+
+  const handlePaste = (coords?: { lat: number; lng: number }) => {
+    if (clipboard) {
+      const offset = coords ? {
+        lat: coords.lat - clipboard.points[0].lat,
+        lng: coords.lng - clipboard.points[0].lng
+      } : {
+        lat: 0.0001,
+        lng: 0.0001
+      };
+
+      const newShape = {
+        ...clipboard,
+        id: crypto.randomUUID(),
+        points: clipboard.points.map(point => ({
+          ...point,
+          lat: point.lat + offset.lat,
+          lng: point.lng + offset.lng,
+          x: point.x,
+          y: point.y
+        })),
+      };
+
+      // Update all state references to ensure persistence
+      setDrawnLines(prev => {
+        const updated = [...prev, newShape];
+        linesRef.current = updated;
+        setStableDrawnLines(updated);
+        return updated;
+      });
+
+      // Update selection after state is updated
+      requestAnimationFrame(() => {
+        setSelectedLineId(newShape.id);
+        setSelectedShape(newShape);
+      });
+    }
+  };
+
+  const handleCut = () => {
+    if (selectedShape) {
+      handleCopy();
+      setDrawnLines(prev => prev.filter(line => line.id !== selectedShape.id));
+      setSelectedLineId(null);
+      setSelectedShape(null);
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedLineId) {
+      setDrawnLines(prev => {
+        const updated = prev.filter(line => line.id !== selectedLineId);
+        linesRef.current = updated;
+        setStableDrawnLines(updated);
+        return updated;
+      });
+      setSelectedLineId(null);
+      setSelectedShape(null);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      // Don't require selectedShape for paste operation
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        handlePaste();
+        return;
+      }
+
+      // Only require selectedShape for copy/cut/delete
+      if (!selectedShape) return;
+      
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        handleCopy();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+        handleCut();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        handleDelete();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyboard);
+    return () => document.removeEventListener('keydown', handleKeyboard);
+  }, [selectedShape, clipboard]);
+
+  // Add this function to handle background clicks
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    // Only handle direct clicks on the map container, not its children
+    if (e.target === e.currentTarget) {
+      setSelectedLineId(null);
+      setSelectedShape(null);
+    }
+  };
+
+  const handleLineThicknessChange = (thickness: number) => {
+    setLineThickness(thickness);
+    if (selectedLineId) {
+      setDrawnLines(prev => {
+        const updated = prev.map(line => 
+          line.id === selectedLineId 
+            ? { ...line, thickness }
+            : line
+        );
+        linesRef.current = updated;
+        setStableDrawnLines(updated);
+        return updated;
+      });
+
+      // Also emit the update event for the SelectTool
+      eventManager.emit(EVENTS.SHAPE_UPDATE, {
+        id: selectedLineId,
+        thickness
+      });
+    }
+  };
+
+  const handleLineColorChange = (color: string) => {
+    setLineColor(color);
+    if (selectedLineId) {
+      const selectedShape = drawnLines.find(line => line.id === selectedLineId);
+      if (selectedShape) {
+        setDrawnLines(prev => {
+          const updated = prev.map(line => 
+            line.id === selectedLineId 
+              ? { ...line, color: color }
+              : line
+          );
+          linesRef.current = updated;
+          setStableDrawnLines(updated);
+          return updated;
+        });
+
+        // Emit the update event for the SelectTool
+        eventManager.emit(EVENTS.SHAPE_UPDATE, {
+          id: selectedLineId,
+          color: color
+        });
+      }
+    }
+  };
+
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen" onContextMenu={handleContextMenu}>
       <EditorNavbar 
         onLocationChange={(coords) => setViewState(prev => ({ ...prev, ...coords }))}
         canvasManager={canvasManager}
@@ -502,13 +703,13 @@ export function Editor() {
             selectedPageSize={selectedPageSize}
             onPageSizeChange={setSelectedPageSize}
             lineColor={lineColor}
-            onLineColorChange={setLineColor}
+            onLineColorChange={handleLineColorChange}
             fillColor={fillColor}
-            onFillColorChange={setFillColor}
+            onFillColorChange={handleFillColorChange}
             fontColor={fontColor}
             onFontColorChange={handleFontColorChange}
             lineThickness={lineThickness}
-            onLineThicknessChange={setLineThickness}
+            onLineThicknessChange={handleLineThicknessChange}
             fontSize={fontSize}
             onFontSizeChange={handleFontSizeChange}
             selectedFeatureId={selectedLineId}
@@ -537,6 +738,7 @@ export function Editor() {
                 margin: '0 auto',
                 position: 'relative'
               }}
+              onClick={handleBackgroundClick}
             >
               <div className="absolute inset-0">
                 <MapComponent
@@ -578,6 +780,20 @@ export function Editor() {
         units={units}
         onUnitsChange={setUnits}
       />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          mapCoords={contextMenu.mapCoords}
+          onClose={() => setContextMenu(null)}
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+          onCut={handleCut}
+          onDelete={handleDelete}
+          canPaste={clipboard !== null}
+          selectedShape={selectedShape}
+        />
+      )}
     </div>
   );
 }

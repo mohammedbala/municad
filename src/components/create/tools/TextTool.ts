@@ -91,9 +91,10 @@ export class TextTool extends BaseTool {
       this.emit(EVENTS.SHAPE_COMPLETE, {
         type: 'text',
         points: [this.editingPosition],
-        text,
-        size: 16,
-        fontColor: this.style.fontColor || this.style.lineColor
+        text: text,
+        size: this.style.fontSize || 16,
+        fontColor: this.style.fontColor || this.style.lineColor,
+        color: this.style.lineColor
       });
     }
 
@@ -101,6 +102,6 @@ export class TextTool extends BaseTool {
   }
 
   redraw() {
-    // No need to redraw anything for the text tool
+    return;
   }
 }

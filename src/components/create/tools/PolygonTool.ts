@@ -41,10 +41,27 @@ export class PolygonTool extends BaseTool {
   private handleDoubleClick = (e: MouseEvent) => {
     e.preventDefault();
     if (this.points.length >= 3) {
-      this.points.push(this.points[0]); // Close the polygon
+      // Remove the last point if it's too close to the first point
+      const lastPoint = this.points[this.points.length - 1];
+      const firstPoint = this.points[0];
+      
+      // Calculate distance between first and last points in screen coordinates
+      const firstProjected = this.map.project([firstPoint.lng, firstPoint.lat]);
+      const lastProjected = this.map.project([lastPoint.lng, lastPoint.lat]);
+      const distance = Math.hypot(
+        firstProjected.x - lastProjected.x,
+        firstProjected.y - lastProjected.y
+      );
+
+      // If the last point is very close to the first point, remove it
+      if (distance < 10) {
+        this.points.pop();
+      }
+
+      // Add the first point to close the polygon
       this.emit(EVENTS.SHAPE_COMPLETE, {
         type: 'polygon',
-        points: this.points
+        points: [...this.points, this.points[0]]
       });
       this.points = [];
       this.previewPoint = null;

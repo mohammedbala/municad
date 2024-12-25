@@ -332,6 +332,45 @@ export class SelectTool extends BaseTool {
   private handleShapeResize(point: Point) {
     if (!this.resizeState || !this.selectedShape) return;
 
+    // Special handling for polygons
+    if (this.selectedShape.type === 'polygon') {
+      const projected = this.map.project([point.lng, point.lat]);
+      const newLngLat = this.map.unproject([projected.x, projected.y]);
+      
+      // Get all points except the last one (which is the closing point)
+      let points = this.selectedShape.points.slice(0, -1);
+      
+      // Update the vertex being dragged
+      points = points.map((p, index) => {
+        if (index === this.resizeState!.handleIndex) {
+          return {
+            ...p,
+            lng: newLngLat.lng,
+            lat: newLngLat.lat
+          };
+        }
+        return p;
+      });
+
+      // If we're dragging the first vertex, also update the closing point
+      if (this.resizeState!.handleIndex === 0) {
+        this.selectedShape.points = [...points, {
+          ...points[0],
+          lng: newLngLat.lng,
+          lat: newLngLat.lat
+        }];
+      } else {
+        // Add the closing point (same as first point)
+        this.selectedShape.points = [...points, { ...points[0] }];
+      }
+
+      this.emit(EVENTS.SHAPE_MOVE, {
+        id: this.selectedShape.id,
+        points: this.selectedShape.points
+      });
+      return;
+    }
+
     // Special handling for line-type shapes (line, arrow, dimension)
     if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
       const projected = this.map.project([point.lng, point.lat]);
@@ -415,10 +454,26 @@ export class SelectTool extends BaseTool {
     });
   }
 
-  private getClickedHandle(point: Point): { index: number; type?: 'corner' | 'endpoint' } | null {
+  private getClickedHandle(point: Point): { index: number; type?: 'corner' | 'endpoint' | 'vertex' } | null {
     if (!this.selectedShape) return null;
 
     const projectedPoint = this.map.project([point.lng, point.lat]);
+
+    // Handle polygons - check each vertex
+    if (this.selectedShape.type === 'polygon') {
+      const projectedPoints = this.selectedShape.points.map(p => 
+        this.map.project([p.lng, p.lat])
+      );
+      
+      // Only check vertices up to but not including the last point (which is the closing point)
+      const pointsToCheck = projectedPoints.slice(0, -1);
+
+      for (let i = 0; i < pointsToCheck.length; i++) {
+        if (this.selectionBox.isHandleHit(projectedPoint, pointsToCheck[i])) {
+          return { index: i, type: 'vertex' };
+        }
+      }
+    }
 
     // Handle signs
     if (this.selectedShape.type === 'sign') {
@@ -560,14 +615,15 @@ export class SelectTool extends BaseTool {
         this.selectionBox.drawHandle(point.x, point.y);
       });
     } else if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
-      // Draw rectangle/polygon selection box with corner handles
+      // Get projected points for the actual shape corners
       const projectedPoints = this.selectedShape.points.map(p => {
         const projected = this.map.project([p.lng, p.lat]);
         return { x: projected.x, y: projected.y };
       });
       
       const bounds = this.calculateBounds(projectedPoints);
-      this.selectionBox.drawBox(bounds);
+      // Pass both bounds and actual corner points
+      this.selectionBox.drawBox(bounds, projectedPoints);
     }
 
     ctx.restore();
