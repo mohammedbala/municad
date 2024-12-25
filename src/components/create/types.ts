@@ -21,6 +21,7 @@ export interface DrawnLine {
     name: string;
     size?: number;
   };
+  hatchPattern?: string;
 }
 
 export interface TextLabel {

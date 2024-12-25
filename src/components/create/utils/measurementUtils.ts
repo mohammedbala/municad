@@ -14,8 +14,26 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * c;
 }
 
-export function formatMeasurement(distance: number): string {
-  if (distance < 1) return `${(distance * 100).toFixed(0)} cm`;
-  if (distance < 1000) return `${distance.toFixed(1)} m`;
-  return `${(distance / 1000).toFixed(2)} km`;
+export function formatMeasurement(distanceInMeters: number, units: 'imperial' | 'metric' = 'imperial'): string {
+  if (units === 'imperial') {
+    const feetPerMeter = 3.28084;
+    const feet = distanceInMeters * feetPerMeter;
+    
+    if (feet < 1) {
+      return `${Math.round(feet * 12)} in`;
+    } else if (feet >= 5280) {
+      const miles = feet / 5280;
+      return `${miles.toFixed(2)} mi`;
+    } else {
+      return `${Math.round(feet)} ft`;
+    }
+  } else {
+    if (distanceInMeters < 1) {
+      return `${Math.round(distanceInMeters * 100)} cm`;
+    } else if (distanceInMeters >= 1000) {
+      return `${(distanceInMeters / 1000).toFixed(2)} km`;
+    } else {
+      return `${Math.round(distanceInMeters)} m`;
+    }
+  }
 }

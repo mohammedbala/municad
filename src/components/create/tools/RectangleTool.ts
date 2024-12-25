@@ -51,7 +51,8 @@ export class RectangleTool extends BaseTool {
       const points = this.getRectanglePoints();
       this.emit(EVENTS.SHAPE_COMPLETE, {
         type: 'rectangle',
-        points
+        points,
+        hatchPattern: this.style.hatchPattern
       });
       this.startPoint = null;
       this.endPoint = null;
@@ -95,7 +96,12 @@ export class RectangleTool extends BaseTool {
 
     this.canvasManager.clear();
     const points = this.getRectanglePoints();
-    this.canvasManager.drawPolygon(points, this.style.lineColor!, this.style.fillColor!);
+    this.canvasManager.drawPolygon(
+      points, 
+      this.style.lineColor!, 
+      this.style.fillColor!,
+      this.style.hatchPattern
+    );
   }
 
   redraw() {

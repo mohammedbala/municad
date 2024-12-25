@@ -1,17 +1,20 @@
 import React from 'react';
 import { ChevronRight, ChevronLeft, SignpostBig, Loader2 } from 'lucide-react';
-import { useTrafficSigns } from './trafficSigns';
+
+import { getTrafficSignIcons, getTrafficSymbolIcons, IconItem } from '../create/utils/iconUtils.ts'
 
 export function Sidebar({ isOpen, onToggle }) {
-  const { signs, loading, error } = useTrafficSigns();
 
-  const onDragStart = (e: React.DragEvent, sign: any) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(sign));
+  const trafficSigns = getTrafficSignIcons();
+  const trafficSymbols = getTrafficSymbolIcons();
+
+  const onDragStart = (e: React.DragEvent, item: IconItem) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(item));
     e.dataTransfer.effectAllowed = 'copy';
 
     // Create a drag image
     const dragImage = document.createElement('img');
-    dragImage.src = sign.url;
+    dragImage.src = item.path;
     dragImage.className = 'w-8 h-8';
     dragImage.style.opacity = '0.7';
     document.body.appendChild(dragImage);
@@ -19,53 +22,33 @@ export function Sidebar({ isOpen, onToggle }) {
     setTimeout(() => document.body.removeChild(dragImage), 0);
   };
 
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full p-4">
-          <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
-          <p className="mt-2 text-gray-600">Loading signs...</p>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full p-4">
-          <p className="text-red-500 text-center">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-[#1E3A8A] text-white rounded hover:bg-[#2563EB]"
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="grid grid-cols-2 gap-4">
-        {signs.map((sign) => (
+  const renderSignSection = (title: string, items: IconItem[]) => (
+    <>
+      <div className="p-4 border-b-4 border-[#1E3A8A]">
+        <h2 className="font-bold text-lg text-[#1E3A8A]">{title}</h2>
+      </div>
+      <div className="grid grid-cols-2 gap-4 p-4">
+        {items.map((item) => (
           <div
-            key={sign.id}
+            key={item.id}
             draggable
-            onDragStart={(e) => onDragStart(e, sign)}
+            onDragStart={(e) => onDragStart(e, item)}
             className="border-2 border-[#1E3A8A] p-2 rounded cursor-move hover:bg-blue-50 transition-colors"
           >
             <img 
-              src={sign.url} 
-              alt={sign.name} 
+              src={item.path} 
+              alt={item.name} 
               className="w-full h-auto"
               onError={(e) => {
                 e.currentTarget.src = 'https://placehold.co/100x100?text=Error';
               }}
             />
-            <p className="text-xs mt-1 text-center text-gray-600">{sign.name}</p>
+            <p className="text-xs mt-1 text-center text-gray-600">{item.name}</p>
           </div>
         ))}
       </div>
-    );
-  };
+    </>
+  );
 
   return (
     <div 
@@ -102,14 +85,10 @@ export function Sidebar({ isOpen, onToggle }) {
 
       {/* Sidebar Content - Only shown when open */}
       {isOpen && (
-        <>
-          <div className="p-4 border-b-4 border-[#1E3A8A] mt-12">
-            <h2 className="font-bold text-lg text-[#1E3A8A]">Traffic Signs</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {renderContent()}
-          </div>
-        </>
+        <div className="mt-12 flex-1 overflow-y-auto">
+          {renderSignSection("Traffic Symbols", trafficSymbols)}
+          {renderSignSection("Traffic Signs", trafficSigns)}
+        </div>
       )}
     </div>
   );

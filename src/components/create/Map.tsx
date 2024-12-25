@@ -158,6 +158,47 @@ export function MapComponent({
     }
   };
 
+  // Add this effect to add building layer when map loads
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    // Wait for the map style to load
+    map.on('style.load', () => {
+      // Add 3D buildings layer
+      map.addLayer({
+        'id': 'building-outlines',
+        'source': 'composite',
+        'source-layer': 'building',
+        'filter': ['==', 'extrude', 'true'],
+        'type': 'line',
+        'paint': {
+          'line-color': '#2563eb', // Blue color for building outlines
+          'line-width': 1,
+          'line-opacity': 0.8
+        }
+      });
+
+      map.addLayer({
+        'id': 'building-fills',
+        'source': 'composite',
+        'source-layer': 'building',
+        'filter': ['==', 'extrude', 'true'],
+        'type': 'fill',
+        'paint': {
+          'fill-color': '#94a3b8', // Slate color for building fills
+          'fill-opacity': 0.2
+        }
+      }, 'building-outlines'); // Add fills below the outlines
+    });
+
+    return () => {
+      if (map.getLayer('building-outlines')) {
+        map.removeLayer('building-outlines');
+      }
+    };
+  }, [mapRef.current]);
+
   return (
     <div className="relative w-full h-full">
       <Map
@@ -168,13 +209,14 @@ export function MapComponent({
         mapboxAccessToken={MAPBOX_TOKEN}
         onLoad={handleMapLoad}
         dragPan={selectedTool === 'pan'}
+        preserveDrawingBuffer={true}
+        renderWorldCopies={false}
       >
         <NavigationControl 
           showCompass={true}
           showZoom={true}
           position="top-right"
         />
-        
       </Map>
       
       <canvas
@@ -185,7 +227,8 @@ export function MapComponent({
                  selectedTool === 'select' ? 'default' :
                  selectedTool === 'text' ? 'text' :
                  selectedTool ? 'crosshair' : 'default',
-          pointerEvents: selectedTool === 'pan' ? 'none' : 'auto'
+          pointerEvents: selectedTool === 'pan' ? 'none' : 'auto',
+          zIndex: 1
         }}
         onClick={handleCanvasClick}
       />

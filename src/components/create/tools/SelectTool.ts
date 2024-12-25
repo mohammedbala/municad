@@ -330,7 +330,31 @@ export class SelectTool extends BaseTool {
   }
 
   private handleShapeResize(point: Point) {
-    if (!this.resizeState || !this.selectedShape || !this.resizeState.bounds) return;
+    if (!this.resizeState || !this.selectedShape) return;
+
+    // Special handling for line-type shapes (line, arrow, dimension)
+    if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
+      const projected = this.map.project([point.lng, point.lat]);
+      const newLngLat = this.map.unproject([projected.x, projected.y]);
+      
+      // Update only the point being dragged
+      this.selectedShape.points = this.selectedShape.points.map((p, index) => 
+        index === this.resizeState!.handleIndex ? {
+          ...p,
+          lng: newLngLat.lng,
+          lat: newLngLat.lat
+        } : p
+      );
+
+      this.emit(EVENTS.SHAPE_MOVE, {
+        id: this.selectedShape.id,
+        points: this.selectedShape.points
+      });
+      return;
+    }
+
+    // Original corner resize logic for rectangles and polygons
+    if (!this.resizeState.bounds) return;
 
     const bounds = this.resizeState.bounds;
     const width = bounds.maxX - bounds.minX;
@@ -396,6 +420,7 @@ export class SelectTool extends BaseTool {
 
     const projectedPoint = this.map.project([point.lng, point.lat]);
 
+    // Handle signs
     if (this.selectedShape.type === 'sign') {
       const signPoint = this.selectedShape.points[0];
       const size = this.selectedShape.signData?.size || 64;
@@ -413,7 +438,10 @@ export class SelectTool extends BaseTool {
           return { index: i, type: 'corner' };
         }
       }
-    } else if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
+    }
+
+    // Handle lines, arrows, and dimensions - only endpoint handles
+    if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
       const projectedPoints = this.selectedShape.points.map(p => 
         this.map.project([p.lng, p.lat])
       );
@@ -423,7 +451,10 @@ export class SelectTool extends BaseTool {
           return { index: i, type: 'endpoint' };
         }
       }
-    } else if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
+    }
+
+    // Handle rectangles and polygons - only corner handles
+    if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
       const projectedPoints = this.selectedShape.points.map(p => 
         this.map.project([p.lng, p.lat])
       );
@@ -494,43 +525,62 @@ export class SelectTool extends BaseTool {
     ctx.save();
 
     if (this.selectedShape.type === 'sign') {
+      // Draw sign selection box with corner handles
       const point = this.selectedShape.points[0];
       const size = this.selectedShape.signData?.size || 64;
       const bounds = calculateSignBounds(point, size, this.map);
       this.selectionBox.drawBox(bounds);
-    } else if (this.selectedShape.type === 'text') {
-      const point = this.selectedShape.points[0];
-      const bounds = calculateTextBounds(
-        point,
-        this.selectedShape.text || '',
-        this.selectedShape.size || 16,
-        this.map,
-        ctx
+    } else if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
+      // For lines, only draw endpoint handles and a simple outline
+      const projectedPoints = this.selectedShape.points.map(p => {
+        const projected = this.map.project([p.lng, p.lat]);
+        return { x: projected.x, y: projected.y };
+      });
+      
+      // Draw a simple selection outline
+      ctx.beginPath();
+      ctx.strokeStyle = '#1E3A8A';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      
+      // Draw outline around the line
+      const padding = 4;
+      const bounds = this.calculateBounds(projectedPoints);
+      ctx.strokeRect(
+        bounds.minX - padding,
+        bounds.minY - padding,
+        bounds.maxX - bounds.minX + padding * 2,
+        bounds.maxY - bounds.minY + padding * 2
       );
-      this.selectionBox.drawBox(bounds);
-    } else {
-      const points = this.selectedShape.points;
-      const projectedPoints = points.map(p => this.map.project([p.lng, p.lat]));
       
-      const xs = projectedPoints.map(p => p.x);
-      const ys = projectedPoints.map(p => p.y);
+      ctx.setLineDash([]); // Reset dash pattern
       
-      const bounds = {
-        minX: Math.min(...xs),
-        minY: Math.min(...ys),
-        maxX: Math.max(...xs),
-        maxY: Math.max(...ys)
-      };
-
+      // Draw endpoint handles
+      projectedPoints.forEach(point => {
+        this.selectionBox.drawHandle(point.x, point.y);
+      });
+    } else if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
+      // Draw rectangle/polygon selection box with corner handles
+      const projectedPoints = this.selectedShape.points.map(p => {
+        const projected = this.map.project([p.lng, p.lat]);
+        return { x: projected.x, y: projected.y };
+      });
+      
+      const bounds = this.calculateBounds(projectedPoints);
       this.selectionBox.drawBox(bounds);
-
-      if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
-        projectedPoints.forEach(point => {
-          this.selectionBox.drawHandle(point.x, point.y);
-        });
-      }
     }
 
     ctx.restore();
+  }
+
+  private calculateBounds(points: { x: number; y: number }[]) {
+    const xs = points.map(p => p.x);
+    const ys = points.map(p => p.y);
+    return {
+      minX: Math.min(...xs),
+      minY: Math.min(...ys),
+      maxX: Math.max(...xs),
+      maxY: Math.max(...ys)
+    };
   }
 }

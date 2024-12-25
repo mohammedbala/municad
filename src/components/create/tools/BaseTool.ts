@@ -9,6 +9,7 @@ export interface ToolStyle {
   fontColor?: string;
   lineType?: string;
   lineThickness?: number;
+  hatchPattern?: string;
 }
 
 export abstract class BaseTool {

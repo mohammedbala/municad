@@ -103,7 +103,7 @@ export class CanvasManager {
     const lngLat = this.map.unproject([x, y]);
     
     try {
-      const signData = JSON.parse(e.dataTransfer!.getData('application/json'));
+      const signData = JSON.parse(e.dataTransfer!.getData('application/json')) as IconItem;
       console.log('Drop event received with data:', signData); // Debug log
 
       const point = {
@@ -114,8 +114,8 @@ export class CanvasManager {
       };
 
       // Ensure all required data is present
-      if (!signData.url) {
-        console.error('Sign URL is missing');
+      if (!signData.path) {
+        console.error('Sign path is missing');
         return;
       }
 
@@ -128,9 +128,9 @@ export class CanvasManager {
 
       // Use the SignTool to handle the drop
       (signTool as SignTool).handleDrop(point, {
-        url: signData.url,
+        url: signData.path,
         name: signData.name || 'Unknown Sign',
-        size: signData.size || 64
+        size: 64
       });
 
     } catch (error) {
@@ -407,5 +407,78 @@ export class CanvasManager {
 
   public getPreviewContext(): CanvasRenderingContext2D {
     return this.previewCtx;
+  }
+
+  public drawHatchedPolygon(points: Point[], strokeColor: string, fillColor: string, hatchPattern: string, thickness: number = 1.0) {
+    if (points.length < 3) return;
+
+    // First draw the regular polygon
+    this.drawPolygon(points, strokeColor, fillColor, thickness);
+
+    if (hatchPattern === 'none') return;
+
+    // Save context state
+    this.ctx.save();
+    this.ctx.strokeStyle = strokeColor;
+    this.ctx.lineWidth = thickness * 0.5;
+
+    // Get bounding box of the polygon
+    const projected = points.map(p => this.map.project([p.lng, p.lat]));
+    const minX = Math.min(...projected.map(p => p.x));
+    const maxX = Math.max(...projected.map(p => p.x));
+    const minY = Math.min(...projected.map(p => p.y));
+    const maxY = Math.max(...projected.map(p => p.y));
+
+    // Create clipping path for the polygon
+    this.ctx.beginPath();
+    const start = projected[0];
+    this.ctx.moveTo(start.x, start.y);
+    for (let i = 1; i < projected.length; i++) {
+      this.ctx.lineTo(projected[i].x, projected[i].y);
+    }
+    this.ctx.closePath();
+    this.ctx.clip();
+
+    // Draw hatch pattern
+    const spacing = 8; // Spacing between hatch lines
+    this.ctx.beginPath();
+
+    switch (hatchPattern) {
+      case 'diagonal':
+        for (let x = minX - maxY; x < maxX + maxY; x += spacing) {
+          this.ctx.moveTo(x, minY);
+          this.ctx.lineTo(x + maxY - minY, maxY);
+        }
+        break;
+
+      case 'cross':
+        // Diagonal lines in both directions
+        for (let x = minX - maxY; x < maxX + maxY; x += spacing) {
+          this.ctx.moveTo(x, minY);
+          this.ctx.lineTo(x + maxY - minY, maxY);
+        }
+        for (let x = minX - maxY; x < maxX + maxY; x += spacing) {
+          this.ctx.moveTo(x + maxY - minY, minY);
+          this.ctx.lineTo(x, maxY);
+        }
+        break;
+
+      case 'horizontal':
+        for (let y = minY; y < maxY; y += spacing) {
+          this.ctx.moveTo(minX, y);
+          this.ctx.lineTo(maxX, y);
+        }
+        break;
+
+      case 'vertical':
+        for (let x = minX; x < maxX; x += spacing) {
+          this.ctx.moveTo(x, minY);
+          this.ctx.lineTo(x, maxY);
+        }
+        break;
+    }
+
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 }

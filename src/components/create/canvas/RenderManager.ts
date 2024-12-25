@@ -31,7 +31,7 @@ export class RenderManager {
   }
 
   public render() {
-    console.log('RenderManager.render()');
+    // console.log('RenderManager.render()');
     // if (!this.needsRender) return;
 
     this.canvasManager.clear();
@@ -58,7 +58,7 @@ export class RenderManager {
   }
 
   public renderShape(shape: DrawnLine) {
-    console.log('RenderManager: Rendering shape:', shape);
+    // console.log('RenderManager: Rendering shape:', shape);
 
     switch (shape.type) {
       case 'line':
@@ -69,12 +69,22 @@ export class RenderManager {
         break;
       case 'rectangle':
       case 'polygon':
-        this.canvasManager.drawPolygon(
-          shape.points,
-          shape.color,
-          shape.fillColor || '#ffffff',
-          shape.thickness
-        );
+        if (shape.hatchPattern) {
+          this.canvasManager.drawHatchedPolygon(
+            shape.points,
+            shape.color,
+            shape.fillColor || '#ffffff',
+            shape.hatchPattern,
+            shape.thickness
+          );
+        } else {
+          this.canvasManager.drawPolygon(
+            shape.points,
+            shape.color,
+            shape.fillColor || '#ffffff',
+            shape.thickness
+          );
+        }
         break;
       case 'dimension':
         this.canvasManager.drawDimensionLine(

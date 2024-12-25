@@ -4,9 +4,11 @@ import { X, Monitor, Moon, Sun, Globe, Palette } from 'lucide-react';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  units: 'imperial' | 'metric';
+  onUnitsChange: (units: 'imperial' | 'metric') => void;
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, units, onUnitsChange }: SettingsModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -57,6 +59,54 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <option value="light-v11">Light</option>
               <option value="dark-v11">Dark</option>
             </select>
+          </div>
+
+          {/* Units Settings */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-5 h-5"
+              >
+                <path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z"/>
+                <path d="M12 4V22"/>
+                <path d="M7 8H9"/>
+                <path d="M15 8H17"/>
+                <path d="M7 12H9"/>
+                <path d="M15 12H17"/>
+                <path d="M7 16H9"/>
+                <path d="M15 16H17"/>
+              </svg>
+              <span>Units</span>
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                className={`flex flex-col items-center gap-2 p-3 border-2 border-[#1E3A8A] rounded hover:bg-blue-50 transition-colors ${
+                  units === 'imperial' ? 'bg-blue-50' : ''
+                }`}
+                onClick={() => onUnitsChange('imperial')}
+              >
+                <span className="text-sm">Imperial</span>
+                <span className="text-xs text-gray-500">mi, ft</span>
+              </button>
+              <button 
+                className={`flex flex-col items-center gap-2 p-3 border-2 border-[#1E3A8A] rounded hover:bg-blue-50 transition-colors ${
+                  units === 'metric' ? 'bg-blue-50' : ''
+                }`}
+                onClick={() => onUnitsChange('metric')}
+              >
+                <span className="text-sm">Metric</span>
+                <span className="text-xs text-gray-500">km, m</span>
+              </button>
+            </div>
           </div>
 
           {/* Color Scheme Settings */}

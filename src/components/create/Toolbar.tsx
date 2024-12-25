@@ -1,4 +1,5 @@
 import React from 'react';
+import { DrawnLine } from './types';
 import { 
   Pencil, 
   Type, 
@@ -49,6 +50,14 @@ const fonts = [
   { id: 'Impact', label: 'Impact' }
 ];
 
+const hatchPatterns = [
+  { id: 'none', label: 'No Pattern' },
+  { id: 'diagonal', label: 'Diagonal Lines' },
+  { id: 'cross', label: 'Cross Hatch' },
+  { id: 'horizontal', label: 'Horizontal Lines' },
+  { id: 'vertical', label: 'Vertical Lines' },
+];
+
 interface ToolbarProps {
   selectedTool: string | null;
   onToolSelect: (tool: string) => void;
@@ -67,6 +76,9 @@ interface ToolbarProps {
   selectedFeatureId: string | null;
   selectedTextId: string | null;
   onDeleteFeature: () => void;
+  hatchPattern: string;
+  onHatchPatternChange: (pattern: string) => void;
+  selectedShape: DrawnLine | null;
 }
 
 export function Toolbar({
@@ -86,12 +98,16 @@ export function Toolbar({
   onFontSizeChange,
   selectedFeatureId,
   selectedTextId,
-  onDeleteFeature
+  onDeleteFeature,
+  hatchPattern,
+  onHatchPatternChange,
+  selectedShape
 }: ToolbarProps) {
   const hasSelection = selectedFeatureId !== null || selectedTextId !== null;
   const isTextSelected = selectedTextId !== null;
   const showTextControls = selectedTool === 'text' || isTextSelected;
 
+  console.log('selectedShape', selectedShape);
   return (
     <div className="mx-4">
       <div className="bg-white border-4 border-[#1E3A8A] rounded-lg p-2 flex justify-between items-center mt-4 shadow-[4px_4px_0px_0px_rgba(30,58,138,1)]">
@@ -147,6 +163,22 @@ export function Toolbar({
                   className="w-16 px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                 />
               </div>
+              {selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon') && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-700">Pattern:</span>
+                  <select
+                    value={hatchPattern}
+                    onChange={(e) => onHatchPatternChange(e.target.value)}
+                    className="border-2 border-[#1E3A8A] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                  >
+                    {hatchPatterns.map((pattern) => (
+                      <option key={pattern.id} value={pattern.id}>
+                        {pattern.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 

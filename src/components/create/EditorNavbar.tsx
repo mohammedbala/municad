@@ -28,6 +28,7 @@ interface EditorNavbarProps {
   setCurrentProjectId: (id: string | null) => void;
   drawnLines: DrawnLine[];
   pageContainerRef: React.RefObject<HTMLDivElement>;
+  onExportPDF: () => void;
 }
 
 interface UseProjectSaveProps {
@@ -131,7 +132,8 @@ export function EditorNavbar({
   currentProjectId,
   setCurrentProjectId,
   drawnLines,
-  pageContainerRef
+  pageContainerRef,
+  onExportPDF
 }: EditorNavbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,6 +144,7 @@ export function EditorNavbar({
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { saveProject, isSaving } = useProjectSave({
     canvasManager,
@@ -282,6 +285,23 @@ export function EditorNavbar({
     }
   };
 
+  const handleExport = async () => {
+    console.log('Export button clicked');
+    setIsExporting(true);
+    setShowExportMenu(false);
+    
+    try {
+      console.log('Starting PDF export process');
+      await onExportPDF();
+      console.log('PDF export completed');
+    } catch (error) {
+      console.error('Error during PDF export:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <>
       <div className="bg-white border-b-8 border-[#1E3A8A] py-2">
@@ -354,28 +374,17 @@ export function EditorNavbar({
                 <span>My Projects</span>
               </Link>
 
-              {/* Export Dropdown */}
-              <div className="relative">
-                <button
-                  ref={exportButtonRef}
-                  onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>Export</span>
-                </button>
-                {showExportMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-[#1E3A8A] rounded shadow-lg z-50">
-                    <button
-                      onClick={handleExportPDF}
-                      className="w-full px-4 py-2 text-left hover:bg-blue-50 flex items-center space-x-2"
-                    >
-                      <FileDown className="w-4 h-4" />
-                      <span>Export as PDF</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Export Button - Simplified */}
+              <button
+                onClick={() => {
+                  console.log('Export button clicked');
+                  onExportPDF();
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded hover:bg-blue-800"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>Export as PDF</span>
+              </button>
 
               <button className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded">
                 <Share2 className="w-5 h-5" />
