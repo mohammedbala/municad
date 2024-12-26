@@ -579,28 +579,61 @@ export class SelectTool extends BaseTool {
     const ctx = this.canvasManager.getContext();
     ctx.save();
 
-    if (this.selectedShape.type === 'sign') {
-      // Draw sign selection box with corner handles
+    if (this.selectedShape.type === 'text') {
+      // Calculate text bounds
+      const bounds = calculateTextBounds(
+        this.selectedShape.points[0],
+        this.selectedShape.text || '',
+        this.selectedShape.size || 16,
+        this.map,
+        ctx
+      );
+
+      // Draw dashed selection box
+      ctx.strokeStyle = '#1E3A8A';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      
+      const padding = 8; // Add some padding around the text
+      ctx.strokeRect(
+        bounds.minX - padding,
+        bounds.minY - padding,
+        bounds.maxX - bounds.minX + padding * 2,
+        bounds.maxY - bounds.minY + padding * 2
+      );
+
+      // Draw resize handles at corners
+      ctx.setLineDash([]);
+      const handles = [
+        { x: bounds.minX - padding, y: bounds.minY - padding }, // NW
+        { x: bounds.maxX + padding, y: bounds.minY - padding }, // NE
+        { x: bounds.maxX + padding, y: bounds.maxY + padding }, // SE
+        { x: bounds.minX - padding, y: bounds.maxY + padding }  // SW
+      ];
+
+      handles.forEach(point => {
+        this.selectionBox.drawHandle(point.x, point.y);
+      });
+    } else if (this.selectedShape.type === 'sign') {
+      // Existing sign selection code
       const point = this.selectedShape.points[0];
       const size = this.selectedShape.signData?.size || 64;
       const bounds = calculateSignBounds(point, size, this.map);
       this.selectionBox.drawBox(bounds);
     } else if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
-      // For lines, only draw endpoint handles and a simple outline
+      // Existing line selection code
       const projectedPoints = this.selectedShape.points.map(p => {
         const projected = this.map.project([p.lng, p.lat]);
         return { x: projected.x, y: projected.y };
       });
       
-      // Draw a simple selection outline
+      const bounds = this.calculateBounds(projectedPoints);
       ctx.beginPath();
       ctx.strokeStyle = '#1E3A8A';
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1;
       
-      // Draw outline around the line
       const padding = 4;
-      const bounds = this.calculateBounds(projectedPoints);
       ctx.strokeRect(
         bounds.minX - padding,
         bounds.minY - padding,
@@ -608,21 +641,19 @@ export class SelectTool extends BaseTool {
         bounds.maxY - bounds.minY + padding * 2
       );
       
-      ctx.setLineDash([]); // Reset dash pattern
+      ctx.setLineDash([]);
       
-      // Draw endpoint handles
       projectedPoints.forEach(point => {
         this.selectionBox.drawHandle(point.x, point.y);
       });
     } else if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
-      // Get projected points for the actual shape corners
+      // Existing rectangle/polygon selection code
       const projectedPoints = this.selectedShape.points.map(p => {
         const projected = this.map.project([p.lng, p.lat]);
         return { x: projected.x, y: projected.y };
       });
       
       const bounds = this.calculateBounds(projectedPoints);
-      // Pass both bounds and actual corner points
       this.selectionBox.drawBox(bounds, projectedPoints);
     }
 

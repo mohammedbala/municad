@@ -54,6 +54,8 @@ export function Editor() {
   });
   const [selectedShape, setSelectedShape] = useState<DrawnLine | null>(null);
   const [hatchPattern, setHatchPattern] = useState('none');
+  const [text_input, setTextInput] = useState('');
+
   const [units, setUnits] = useState<'imperial' | 'metric'>('imperial');
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -90,24 +92,24 @@ export function Editor() {
   }, [drawnLines]);
 
   useEffect(() => {
-    const handleShapeUpdate = (data: { 
-      id: string; 
-      color?: string; 
+    const handleShapeUpdate = (data: {
+      id: string;
+      color?: string;
       fillColor?: string;
       thickness?: number;
       size?: number;
       fontColor?: string;
     }) => {
-      setDrawnLines(prev => prev.map(line => 
-        line.id === data.id 
-          ? { 
-              ...line, 
-              color: data.color || line.color,
-              fillColor: data.fillColor || line.fillColor,
-              thickness: data.thickness ?? line.thickness,
-              size: data.size ?? line.size,
-              fontColor: data.fontColor ?? line.fontColor
-            }
+      setDrawnLines(prev => prev.map(line =>
+        line.id === data.id
+          ? {
+            ...line,
+            color: data.color || line.color,
+            fillColor: data.fillColor || line.fillColor,
+            thickness: data.thickness ?? line.thickness,
+            size: data.size ?? line.size,
+            fontColor: data.fontColor ?? line.fontColor
+          }
           : line
       ));
     };
@@ -118,30 +120,25 @@ export function Editor() {
     };
   }, []);
 
-  const handleShapeComplete = (type: string, points: any[], additionalData?: any) => {
+  const handleShapeComplete = (
+    type: string, 
+    points: any[],
+    additionalData?: any
+  ) => {
     console.log('handleShapeComplete called:', { type, points, additionalData });
+    
     const newShape: DrawnLine = {
       id: crypto.randomUUID(),
       type: type as DrawnLine['type'],
       points,
       color: lineColor,
       fillColor: type === 'rectangle' || type === 'polygon' ? fillColor : undefined,
-      fontColor: type === 'text' ? fontColor : undefined,
+      fontColor: type === 'text' ? (additionalData?.fontColor || fontColor) : undefined,
       thickness: lineThickness,
-      size: type === 'text' ? fontSize : undefined,
+      size: type === 'text' ? (additionalData?.fontSize || fontSize) : undefined,
       hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
-      ...additionalData
+      text: type === 'text' ? additionalData?.text : undefined,
     };
-
-    if (type === 'dimension') {
-      const distance = calculateDistance(
-        points[0].lat,
-        points[0].lng,
-        points[1].lat,
-        points[1].lng
-      );
-      newShape.measurement = formatMeasurement(distance, units);
-    }
 
     console.log('Adding new shape:', newShape);
     setDrawnLines(prev => {
@@ -156,7 +153,7 @@ export function Editor() {
 
   const handleShapeUpdate = (updatedShape: DrawnLine) => {
     setDrawnLines(prev => {
-      const updated = prev.map(shape => 
+      const updated = prev.map(shape =>
         shape.id === updatedShape.id ? updatedShape : shape
       );
       linesRef.current = updated;
@@ -197,12 +194,9 @@ export function Editor() {
       const selectedShape = drawnLines.find(line => line.id === selectedLineId);
       if (selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon')) {
         setDrawnLines(prev => {
-          const updated = prev.map(line => 
-            line.id === selectedLineId 
-              ? { 
-                  ...line, 
-                  fillColor: hatchPattern === 'transparent' ? 'transparent' : color 
-                }
+          const updated = prev.map(line =>
+            line.id === selectedLineId
+              ? { ...line, fillColor: color }
               : line
           );
           linesRef.current = updated;
@@ -213,7 +207,7 @@ export function Editor() {
         // Emit the update event for the SelectTool
         eventManager.emit(EVENTS.SHAPE_UPDATE, {
           id: selectedLineId,
-          fillColor: hatchPattern === 'transparent' ? 'transparent' : color
+          fillColor: color
         });
       }
     }
@@ -226,7 +220,7 @@ export function Editor() {
     selectedPageSize,
     notes,
     currentProjectId: projectId,
-    setCurrentProjectId: () => {},
+    setCurrentProjectId: () => { },
     drawnLines
   });
 
@@ -292,18 +286,18 @@ export function Editor() {
       stableDrawnLinesCount: stableDrawnLines.length,
       refCount: linesRef.current.length
     });
-    
+
     if (id) {
-      const shape = drawnLines.find(line => line.id === id) || 
-                   stableDrawnLines.find(line => line.id === id) ||
-                   linesRef.current.find(line => line.id === id);
-      
+      const shape = drawnLines.find(line => line.id === id) ||
+        stableDrawnLines.find(line => line.id === id) ||
+        linesRef.current.find(line => line.id === id);
+
       console.log('Found shape:', shape);
-      
+
       if (shape) {
         setSelectedLineId(id);
         setSelectedShape(shape);
-        
+
         if (drawnLines.length === 0) {
           setDrawnLines(linesRef.current);
           setStableDrawnLines(linesRef.current);
@@ -320,8 +314,8 @@ export function Editor() {
   const handleHatchPatternChange = (pattern: string) => {
     setHatchPattern(pattern);
     if (selectedLineId) {
-      setDrawnLines(prev => prev.map(line => 
-        line.id === selectedLineId 
+      setDrawnLines(prev => prev.map(line =>
+        line.id === selectedLineId
           ? { ...line, hatchPattern: pattern }
           : line
       ));
@@ -409,7 +403,7 @@ export function Editor() {
             titleBlock.style.transform = 'none';
             titleBlock.style.visibility = 'visible';
             titleBlock.style.backgroundColor = '#ffffff';
-            
+
             // Convert inputs to text elements with tighter spacing
             const inputs = titleBlock.querySelectorAll('input');
             inputs.forEach(input => {
@@ -421,13 +415,13 @@ export function Editor() {
               text.style.fontFamily = 'Arial, sans-serif';
               text.style.color = '#000000';
               text.style.padding = '2px 0';
-              
+
               // Add a horizontal line after the text
               const line = document.createElement('div');
               line.style.height = '1px';
               line.style.backgroundColor = '#cccccc';
               line.style.marginBottom = '4px';
-              
+
               // Replace input with text and line
               const container = document.createElement('div');
               container.appendChild(text);
@@ -515,15 +509,15 @@ export function Editor() {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    
+
     // Get map coordinates from click position
     if (!mapRef.current) return;
-    
+
     const rect = mapRef.current.getCanvas().getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const lngLat = mapRef.current.unproject([x, y]);
-    
+
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -610,7 +604,7 @@ export function Editor() {
 
       // Only require selectedShape for copy/cut/delete
       if (!selectedShape) return;
-      
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         handleCopy();
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
@@ -637,8 +631,8 @@ export function Editor() {
     setLineThickness(thickness);
     if (selectedLineId) {
       setDrawnLines(prev => {
-        const updated = prev.map(line => 
-          line.id === selectedLineId 
+        const updated = prev.map(line =>
+          line.id === selectedLineId
             ? { ...line, thickness }
             : line
         );
@@ -661,8 +655,8 @@ export function Editor() {
       const selectedShape = drawnLines.find(line => line.id === selectedLineId);
       if (selectedShape) {
         setDrawnLines(prev => {
-          const updated = prev.map(line => 
-            line.id === selectedLineId 
+          const updated = prev.map(line =>
+            line.id === selectedLineId
               ? { ...line, color: color }
               : line
           );
@@ -682,7 +676,7 @@ export function Editor() {
 
   return (
     <div className="flex flex-col h-screen" onContextMenu={handleContextMenu}>
-      <EditorNavbar 
+      <EditorNavbar
         onLocationChange={(coords) => setViewState(prev => ({ ...prev, ...coords }))}
         canvasManager={canvasManager}
         viewState={viewState}
@@ -690,15 +684,15 @@ export function Editor() {
         selectedPageSize={selectedPageSize}
         notes={notes}
         currentProjectId={projectId}
-        setCurrentProjectId={() => {}}
+        setCurrentProjectId={() => { }}
         drawnLines={drawnLines}
         pageContainerRef={pageContainerRef}
         onExportPDF={handleExportPDF}
       />
       <div className="flex-1 flex overflow-hidden min-w-0">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         />
         <div className="flex-1 flex flex-col min-w-0">
           <Toolbar
@@ -736,14 +730,14 @@ export function Editor() {
             onHatchPatternChange={handleHatchPatternChange}
           />
           <div className="flex-1 overflow-auto p-4 bg-gray-100">
-            <div 
+            <div
               ref={pageContainerRef}
               data-export-container
               className="bg-white shadow-lg relative overflow-hidden"
               style={{
                 aspectRatio: selectedPageSize === '8.5x11' ? '11/8.5' :
-                           selectedPageSize === '11x17' ? '17/11' :
-                           selectedPageSize === '24x36' ? '36/24' : '42/30',
+                  selectedPageSize === '11x17' ? '17/11' :
+                    selectedPageSize === '24x36' ? '36/24' : '42/30',
                 height: 'calc(100vh - 220px)',
                 margin: '0 auto',
                 position: 'relative'
@@ -768,12 +762,12 @@ export function Editor() {
                 />
               </div>
               <div className="absolute inset-0 pointer-events-none">
-                <TitleBlock 
+                <TitleBlock
                   data={titleBlockData}
                   onChange={setTitleBlockData}
                 />
               </div>
-              <NotesPanel 
+              <NotesPanel
                 isOpen={showNotesPanel}
                 onClose={() => setShowNotesPanel(false)}
                 notes={notes}
@@ -784,7 +778,7 @@ export function Editor() {
         </div>
       </div>
       <EditorFooter />
-      <SettingsModal 
+      <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
         units={units}

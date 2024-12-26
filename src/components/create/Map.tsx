@@ -20,7 +20,7 @@ interface MapProps {
   fillColor: string;
   fontColor: string;
   lineThickness: number;
-  onShapeComplete: (type: string, points: Point[], additionalData?: any) => void;
+  onShapeComplete: (type: string, points: Point[], additionalData?: any,) => void;
   onShapeSelect: (id: string | null) => void;
   onShapeUpdate: (shape: DrawnLine) => void;
   drawnLines: DrawnLine[];
@@ -62,7 +62,7 @@ export function MapComponent({
       onShapeComplete(
         shape.type,
         shape.points,
-        shape.type === 'sign' ? { signData: shape.signData } : undefined
+        shape.additionalData
       );
     };
 

@@ -90,15 +90,15 @@ export class TextTool extends BaseTool {
     if (text) {
       console.log('TextTool: Completing text input with:', text);
       
-      this.emit(EVENTS.SHAPE_COMPLETE, 
-        'text',  // type
-        [this.editingPosition],  // points
-        { // additionalData
-          text: text,
-          size: this.style.fontSize || 16,
+      this.emit(EVENTS.SHAPE_COMPLETE, {
+        type: 'text',
+        points: [this.editingPosition],
+        additionalData: {
+          text,
+          fontSize: this.style.fontSize || 16,
           fontColor: this.style.fontColor || this.style.lineColor
         }
-      );
+      });
     }
 
     this.removeTextInput();

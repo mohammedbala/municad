@@ -96,18 +96,18 @@ export class RenderManager {
         break;
       case 'text':
         if (!shape.text) {
-          console.warn('RenderManager: Text shape missing text property:', shape);
+          // console.warn('RenderManager: Text shape missing text property:', shape);
           return;
         }
 
-        console.log('RenderManager: Drawing text:', {
-          point: shape.points[0],
-          text: shape.text,
-          color: shape.color,
-          size: shape.size,
-          fontColor: shape.fontColor,
-          fillColor: shape.fillColor
-        });
+        // console.log('RenderManager: Drawing text:', {
+        //   point: shape.points[0],
+        //   text: shape.text,
+        //   color: shape.color,
+        //   size: shape.size,
+        //   fontColor: shape.fontColor,
+        //   fillColor: shape.fillColor
+        // });
 
         this.canvasManager.drawText(
           shape.points[0],
