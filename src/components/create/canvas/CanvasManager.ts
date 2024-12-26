@@ -113,12 +113,6 @@ export class CanvasManager {
         y
       };
 
-      // Ensure all required data is present
-      if (!signData.url) {
-        console.error('Sign URL is missing');
-        return;
-      }
-
       // Get the SignTool
       const signTool = this.toolManager.getTool('sign');
       if (!signTool) {
@@ -126,15 +120,21 @@ export class CanvasManager {
         return;
       }
 
-      // Use the SignTool to handle the drop
+      // Ensure we have the required path
+      if (!signData.path) {
+        console.error('Sign path is missing from dropped data:', signData);
+        return;
+      }
+
+      // Use the SignTool to handle the drop with properly structured data
       (signTool as SignTool).handleDrop(point, {
-        url: signData.url,
+        url: signData.path,  // Use path as url
         name: signData.name || 'Unknown Sign',
         size: signData.size || 64
       });
 
     } catch (error) {
-      console.error('Error handling sign drop:', error);
+      console.error('Error handling sign drop:', error, 'Data:', e.dataTransfer?.getData('application/json'));
     }
   };
 

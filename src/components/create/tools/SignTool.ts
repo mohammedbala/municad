@@ -45,20 +45,21 @@ export class SignTool extends BaseTool {
       return;
     }
 
-    const shape: SignShape = {
+    const shape = {
       type: 'sign',
       points: [point],
       color: '#1E3A8A',
-      signData: {
-        url: this.signData.url,
-        name: this.signData.name,
-        size: this.signData.size
+      additionalData: {
+        signData: {
+          url: this.signData.url,
+          name: this.signData.name,
+          size: this.signData.size
+        }
       },
       id: crypto.randomUUID()
     };
 
     console.log('SignTool: Created shape:', shape);
-
     this.emit(EVENTS.SHAPE_COMPLETE, shape);
   };
 

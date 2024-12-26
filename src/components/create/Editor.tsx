@@ -138,6 +138,7 @@ export function Editor() {
       size: type === 'text' ? (additionalData?.fontSize || fontSize) : undefined,
       hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
       text: type === 'text' ? additionalData?.text : undefined,
+      signData: type === 'sign' ? additionalData?.signData : undefined,
     };
 
     console.log('Adding new shape:', newShape);
