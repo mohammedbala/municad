@@ -212,8 +212,8 @@ export function MapComponent({
         className="absolute top-0 left-0 w-full h-full pointer-events-auto"
         style={{ 
           cursor: selectedTool === 'pan' ? 'grab' : 
-                 selectedTool === 'select' ? 'default' :
                  selectedTool === 'text' ? 'text' :
+                 selectedTool === 'select' ? 'default' :
                  selectedTool ? 'crosshair' : 'default',
           pointerEvents: selectedTool === 'pan' ? 'none' : 'auto',
           zIndex: 1

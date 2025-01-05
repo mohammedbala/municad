@@ -4,17 +4,19 @@ export class SelectionBox {
   private ctx: CanvasRenderingContext2D;
   private padding: number = 10;
   private handleSize: number = 8;
+  private rotateHandleOffset: number = 30;
   private handleStyle = {
-    fillColor: '#FFD700', // Dark yellow
-    strokeColor: '#000000', // Black
-    lineWidth: 2
+    fillColor: '#FFD700',
+    strokeColor: '#000000',
+    lineWidth: 2,
+    vertexFillColor: '#4CAF50'
   };
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
   }
 
-  drawBox(bounds: { minX: number; minY: number; maxX: number; maxY: number }, points?: { x: number; y: number }[]) {
+  drawBox(bounds: { minX: number; minY: number; maxX: number; maxY: number }, points?: { x: number; y: number }[], shapeType?: string) {
     this.ctx.save();
     
     // Draw selection rectangle
@@ -22,21 +24,60 @@ export class SelectionBox {
     this.ctx.lineWidth = 2;
     this.ctx.setLineDash([5, 5]);
     
-    this.ctx.strokeRect(
-      bounds.minX - this.padding,
-      bounds.minY - this.padding,
-      bounds.maxX - bounds.minX + this.padding * 2,
-      bounds.maxY - bounds.minY + this.padding * 2
-    );
+    const boxMinX = bounds.minX - this.padding;
+    const boxMinY = bounds.minY - this.padding;
+    const boxMaxX = bounds.maxX + this.padding;
+    const boxMaxY = bounds.maxY + this.padding;
+    const boxWidth = boxMaxX - boxMinX;
+    const boxHeight = boxMaxY - boxMinY;
 
-    // Draw resize handles at vertices if points are provided
+    this.ctx.strokeRect(boxMinX, boxMinY, boxWidth, boxHeight);
+
+    // Draw rotate handle and line
+    const centerX = (bounds.minX + bounds.maxX) / 2;
     this.ctx.setLineDash([]);
-    if (points && points.length > 0) {
-      // Always exclude the last point for polygons as it's the closing point
-      const pointsToUse = points.slice(0, -1);
-      
-      pointsToUse.forEach(point => {
-        this.drawHandle(point.x, point.y);
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, bounds.minY - this.padding);
+    this.ctx.lineTo(centerX, bounds.minY - this.rotateHandleOffset);
+    this.ctx.strokeStyle = this.handleStyle.strokeColor;
+    this.ctx.stroke();
+    
+    // Draw the rotate handle
+    this.drawHandle(centerX, bounds.minY - this.rotateHandleOffset);
+
+    // Draw resize handles at corners only for signs and polygons
+    if (shapeType === 'sign' || shapeType === 'polygon') {
+      this.ctx.setLineDash([]);
+      const handles = [
+        { x: boxMinX, y: boxMinY }, // NW
+        { x: boxMaxX, y: boxMinY }, // NE
+        { x: boxMaxX, y: boxMaxY }, // SE
+        { x: boxMinX, y: boxMaxY }  // SW
+      ];
+
+      handles.forEach(handle => {
+        this.drawHandle(handle.x, handle.y);
+      });
+    }
+
+    // Draw vertex/endpoint handles if points are provided
+    if (points) {
+      points.forEach((point, index) => {
+        // For polygons, skip the last point as it's the same as the first
+        if (shapeType === 'polygon' && 
+            index === points.length - 1 && 
+            point.x === points[0].x && 
+            point.y === points[0].y) {
+          return;
+        }
+        // For lines/arrows/dimensions, only draw the start and end points
+        if (['line', 'arrow', 'dimension'].includes(shapeType || '') && 
+            index < 2) {
+          this.drawVertexHandle(point.x, point.y);
+        } else if (!['line', 'arrow', 'dimension'].includes(shapeType || '')) {
+          // For other shapes, draw all vertex points
+          this.drawVertexHandle(point.x, point.y);
+        }
       });
     }
 
@@ -53,12 +94,25 @@ export class SelectionBox {
     this.ctx.stroke();
   }
 
+  drawVertexHandle(x: number, y: number) {
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, this.handleSize / 2, 0, Math.PI * 2);
+    this.ctx.fillStyle = this.handleStyle.vertexFillColor;
+    this.ctx.fill();
+    this.ctx.strokeStyle = this.handleStyle.strokeColor;
+    this.ctx.lineWidth = this.handleStyle.lineWidth;
+    this.ctx.stroke();
+  }
+
   isHandleHit(point: Point, handle: { x: number; y: number }): boolean {
     const distance = Math.hypot(point.x - handle.x, point.y - handle.y);
     return distance <= this.handleSize;
   }
 
-  getHandleCursor(handleIndex: number): string {
+  getHandleCursor(handleIndex: number, isVertex: boolean = false): string {
+    if (isVertex) {
+      return 'move';
+    }
     switch (handleIndex) {
       case 0: return 'nw-resize'; // NW
       case 1: return 'ne-resize'; // NE
@@ -66,5 +120,12 @@ export class SelectionBox {
       case 3: return 'sw-resize'; // SW
       default: return 'move';
     }
+  }
+
+  isRotateHandleHit(point: { x: number; y: number }, bounds: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const handleY = bounds.minY - this.rotateHandleOffset;
+    
+    return this.isHandleHit(point, { x: centerX, y: handleY });
   }
 }

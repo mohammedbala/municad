@@ -12,6 +12,8 @@ interface ResizeState {
   originalPoints: Point[];
   startPoint: Point;
   originalSize?: number;
+  originalRotation?: number;
+  isRotating?: boolean;
   bounds?: {
     minX: number;
     minY: number;
@@ -30,10 +32,18 @@ export class SelectTool extends BaseTool {
   private selectionBox: SelectionBox;
   private textInput: HTMLInputElement | null = null;
   private isEditing = false;
+  private currentCursor: string = 'default';
 
   constructor(canvasManager: any, map: any) {
     super(canvasManager, map);
     this.selectionBox = new SelectionBox(this.canvasManager.getContext());
+  }
+
+  private setCursor(cursor: string) {
+    if (this.currentCursor !== cursor) {
+      this.currentCursor = cursor;
+      this.canvasManager.getCanvas().style.cursor = cursor;
+    }
   }
 
   activate() {
@@ -42,7 +52,6 @@ export class SelectTool extends BaseTool {
     canvas.addEventListener('mousemove', this.handleMouseMove);
     canvas.addEventListener('mouseup', this.handleMouseUp);
     canvas.addEventListener('dblclick', this.handleDoubleClick);
-    canvas.style.cursor = 'default';
   }
 
   deactivate() {
@@ -58,7 +67,7 @@ export class SelectTool extends BaseTool {
     this.resizeState = null;
     this.isResizing = false;
     this.removeTextInput();
-    canvas.style.cursor = 'default';
+    this.setCursor('default');
   }
 
   private handleDoubleClick = (e: MouseEvent) => {
@@ -166,38 +175,71 @@ export class SelectTool extends BaseTool {
     const point = this.getMapPoint(e);
     if (!point) return;
 
+    const canvas = this.canvasManager.getCanvas();
+    const rect = canvas.getBoundingClientRect();
+    const canvasPoint = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+
+    if (this.selectedShape && this.selectedShape.type === 'sign') {
+        const signPoint = this.selectedShape.points[0];
+        const size = this.selectedShape.signData?.size || 64;
+        const bounds = calculateSignBounds(signPoint, size, this.map);
+        
+        if (this.selectionBox.isRotateHandleHit(canvasPoint, bounds)) {
+            console.log('Rotate handle hit detected');
+            this.startResize(point, { index: -1, type: 'rotate' });
+            return;
+        }
+    }
+
     if (this.selectedShape) {
-      const handleInfo = this.getClickedHandle(point);
-      if (handleInfo) {
-        this.startResize(point, handleInfo);
-        return;
-      }
+        let bounds;
+        
+        // Calculate bounds based on shape type
+        if (this.selectedShape.type === 'sign') {
+            const signPoint = this.selectedShape.points[0];
+            const size = this.selectedShape.signData?.size || 64;
+            bounds = calculateSignBounds(signPoint, size, this.map);
+        } else {
+            const projectedPoints = this.selectedShape.points.map(p => {
+                const projected = this.map.project([p.lng, p.lat]);
+                return { x: projected.x, y: projected.y };
+            });
+            bounds = this.calculateBounds(projectedPoints);
+        }
+
+        const handleInfo = this.getClickedHandle(canvasPoint, bounds);
+        if (handleInfo) {
+            this.startResize(point, handleInfo);
+            return;
+        }
     }
 
     const shapes = (window as any).drawnLines || [];
     const nearbyShapes = findNearbyShapes(point, shapes, this.map);
 
     if (nearbyShapes.length > 0) {
-      const nearestShape = shapes.find(s => s.id === nearbyShapes[0].id);
-      if (nearestShape) {
-        this.selectedShape = nearestShape;
-        this.dragStart = point;
-        this.isDragging = true;
-        this.originalPoints = [...nearestShape.points];
-        const canvas = this.canvasManager.getCanvas();
-        canvas.style.cursor = 'move';
-      }
+        const nearestShape = shapes.find(s => s.id === nearbyShapes[0].id);
+        if (nearestShape) {
+            this.selectedShape = nearestShape;
+            this.dragStart = point;
+            this.isDragging = true;
+            this.originalPoints = [...nearestShape.points];
+            canvas.style.cursor = 'move';
+        }
     } else {
-      this.selectedShape = null;
+        this.selectedShape = null;
     }
 
     this.emit(EVENTS.SELECTION_CHANGE, { 
-      point,
-      selectedShape: this.selectedShape 
+        point,
+        selectedShape: this.selectedShape 
     });
 
     requestAnimationFrame(() => {
-      this.canvasManager.redraw();
+        this.canvasManager.redraw();
     });
   };
 
@@ -207,22 +249,28 @@ export class SelectTool extends BaseTool {
     const point = this.getMapPoint(e);
     if (!point) return;
 
-    if (this.isResizing && this.resizeState) {
-      this.handleResize(point);
-    } else if (this.isDragging && this.selectedShape && this.dragStart && this.originalPoints) {
+    // Handle dragging
+    if (this.isDragging && this.selectedShape && this.dragStart) {
       const deltaLng = point.lng - this.dragStart.lng;
       const deltaLat = point.lat - this.dragStart.lat;
 
-      this.selectedShape.points = this.originalPoints.map(p => ({
-        ...p,
-        lng: p.lng + deltaLng,
-        lat: p.lat + deltaLat
-      }));
-
-      if (this.selectedShape.type === 'dimension') {
-        this.updateDimensionMeasurement();
+      if (this.selectedShape.type === 'sign') {
+        // For signs, we only need to update the single point
+        this.selectedShape.points = [
+          {
+            lng: this.originalPoints![0].lng + deltaLng,
+            lat: this.originalPoints![0].lat + deltaLat
+          }
+        ];
+      } else {
+        // For other shapes, update all points
+        this.selectedShape.points = this.originalPoints!.map(p => ({
+          lng: p.lng + deltaLng,
+          lat: p.lat + deltaLat
+        }));
       }
 
+      // Emit the shape move event
       this.emit(EVENTS.SHAPE_MOVE, {
         id: this.selectedShape.id,
         points: this.selectedShape.points
@@ -231,15 +279,41 @@ export class SelectTool extends BaseTool {
       requestAnimationFrame(() => {
         this.canvasManager.redraw();
       });
-    } else if (this.selectedShape) {
-      const handleInfo = this.getClickedHandle(point);
-      const canvas = this.canvasManager.getCanvas();
+      return;
+    }
+
+    if (this.isResizing && this.resizeState) {
+      this.handleResize(point);
+      return;
+    }
+
+    if (this.selectedShape) {
+      let bounds;
+      let projectedPoints;
+      
+      if (this.selectedShape.type === 'polygon') {
+          projectedPoints = this.selectedShape.points.map(p => {
+              const projected = this.map.project([p.lng, p.lat]);
+              return { x: projected.x, y: projected.y };
+          });
+          bounds = this.calculateBounds(projectedPoints);
+      } else if (this.selectedShape.type === 'sign') {
+          const signPoint = this.selectedShape.points[0];
+          const size = this.selectedShape.signData?.size || 64;
+          bounds = calculateSignBounds(signPoint, size, this.map);
+      }
+
+      const handleInfo = this.getClickedHandle(point, bounds);
       if (handleInfo) {
-        canvas.style.cursor = this.selectionBox.getHandleCursor(handleInfo.index);
-      } else {
-        canvas.style.cursor = 'move';
+          const cursor = handleInfo.type === 'vertex' ? 
+              'move' : 
+              this.selectionBox.getHandleCursor(handleInfo.index);
+          this.setCursor(cursor);
+          return;
       }
     }
+
+    this.setCursor('default');
   };
 
   private handleMouseUp = () => {
@@ -269,29 +343,36 @@ export class SelectTool extends BaseTool {
     this.selectedShape.measurement = formatMeasurement(distance);
   }
 
-  private startResize(point: Point, handleInfo: { index: number; type?: 'corner' | 'endpoint' }) {
+  private startResize(point: Point, handleInfo: { index: number; type?: 'corner' | 'vertex' | 'rotate' }) {
     if (!this.selectedShape) return;
 
     const projectedPoints = this.selectedShape.points.map(p => {
-      const projected = this.map.project([p.lng, p.lat]);
-      return { x: projected.x, y: projected.y };
+        const projected = this.map.project([p.lng, p.lat]);
+        return { x: projected.x, y: projected.y };
     });
 
     const xs = projectedPoints.map(p => p.x);
     const ys = projectedPoints.map(p => p.y);
 
+    const projected = this.map.project([point.lng, point.lat]);
+    const currentPoint = { x: projected.x, y: projected.y };
+
     this.resizeState = {
-      handleIndex: handleInfo.index,
-      originalPoints: [...this.selectedShape.points],
-      startPoint: point,
-      originalSize: this.selectedShape.type === 'sign' ? 
-        this.selectedShape.signData?.size : undefined,
-      bounds: {
-        minX: Math.min(...xs),
-        minY: Math.min(...ys),
-        maxX: Math.max(...xs),
-        maxY: Math.max(...ys)
-      }
+        handleIndex: handleInfo.index,
+        type: handleInfo.type,
+        originalPoints: [...this.selectedShape.points],
+        startPoint: currentPoint,
+        originalSize: this.selectedShape.type === 'sign' ? 
+            this.selectedShape.signData?.size : undefined,
+        originalRotation: this.selectedShape.type === 'sign' ? 
+            (this.selectedShape.signData?.rotation || 0) : undefined,
+        isRotating: handleInfo.type === 'rotate',
+        bounds: {
+            minX: Math.min(...xs),
+            minY: Math.min(...ys),
+            maxX: Math.max(...xs),
+            maxY: Math.max(...ys)
+        }
     };
 
     this.isResizing = true;
@@ -300,32 +381,165 @@ export class SelectTool extends BaseTool {
   private handleResize(point: Point) {
     if (!this.resizeState || !this.selectedShape) return;
 
-    if (this.selectedShape.type === 'sign' && this.resizeState.originalSize) {
-      const newSize = calculateNewSignSize(
-        this.resizeState.originalSize,
-        this.resizeState.startPoint,
-        point,
-        this.resizeState.handleIndex
-      );
+    if (this.selectedShape.type === 'sign') {
+        if (this.resizeState.handleIndex === -1) { // Rotation
+            const signPoint = this.selectedShape.points[0];
+            const projected = this.map.project([signPoint.lng, signPoint.lat]);
+            const centerX = projected.x;
+            const centerY = projected.y;
 
-      if (this.selectedShape.signData) {
-        this.selectedShape.signData.size = newSize;
-      }
+            const currentProjected = this.map.project([point.lng, point.lat]);
+            const currentPoint = { x: currentProjected.x, y: currentProjected.y };
+            
+            const startAngle = Math.atan2(
+                this.resizeState.startPoint.y - centerY,
+                this.resizeState.startPoint.x - centerX
+            );
+            const currentAngle = Math.atan2(
+                currentPoint.y - centerY,
+                currentPoint.x - centerX
+            );
+            
+            let rotation = ((currentAngle - startAngle) * (180 / Math.PI)) % 360;
+            
+            if (this.selectedShape.signData) {
+                rotation = (this.resizeState.originalRotation || 0) + rotation;
+                this.selectedShape.signData.rotation = rotation;
 
-      this.emit(EVENTS.SHAPE_UPDATE, {
-        id: this.selectedShape.id,
-        signData: this.selectedShape.signData
-      });
+                this.emit(EVENTS.SHAPE_UPDATE, {
+                    id: this.selectedShape.id,
+                    signData: { ...this.selectedShape.signData }
+                });
+            }
+        } else { // Corner resize
+            const signPoint = this.selectedShape.points[0];
+            const projected = this.map.project([signPoint.lng, signPoint.lat]);
+            const currentProjected = this.map.project([point.lng, point.lat]);
+            
+            // Calculate distance from center to current point
+            const dx = currentProjected.x - projected.x;
+            const dy = currentProjected.y - projected.y;
+            const distance = Math.sqrt(dx * dx + dy * dy) * 2; // Multiply by 2 since we're measuring from center
+            
+            // Update sign size
+            if (this.selectedShape.signData && this.resizeState.originalSize) {
+                // Calculate new size based on original size and distance ratio
+                const startDx = this.resizeState.startPoint.x - projected.x;
+                const startDy = this.resizeState.startPoint.y - projected.y;
+                const startDistance = Math.sqrt(startDx * startDx + startDy * startDy) * 2;
+                
+                const sizeRatio = distance / startDistance;
+                const newSize = Math.max(32, Math.min(256, this.resizeState.originalSize * sizeRatio));
+                
+                this.selectedShape.signData.size = Math.round(newSize);
+                
+                this.emit(EVENTS.SHAPE_UPDATE, {
+                    id: this.selectedShape.id,
+                    signData: { ...this.selectedShape.signData }
+                });
+            }
+        }
+    } else if (this.selectedShape.type === 'polygon') {
+        const projected = this.map.project([point.lng, point.lat]);
+        const currentPoint = { x: projected.x, y: projected.y };
+
+        if (this.resizeState.handleIndex >= 0 && this.resizeState.type === 'vertex') {
+            // Handle vertex dragging
+            const newLngLat = this.map.unproject([projected.x, projected.y]);
+            
+            // Get all points except the last one (which is the closing point)
+            let points = this.selectedShape.points.slice(0, -1);
+            
+            // Update the vertex being dragged
+            points = points.map((p, index) => {
+                if (index === this.resizeState!.handleIndex) {
+                    return {
+                        lng: newLngLat.lng,
+                        lat: newLngLat.lat
+                    };
+                }
+                return p;
+            });
+
+            // If we're dragging the first vertex, also update the closing point
+            if (this.resizeState.handleIndex === 0) {
+                this.selectedShape.points = [...points, {
+                    lng: newLngLat.lng,
+                    lat: newLngLat.lat
+                }];
+            } else {
+                // Add the closing point (same as first point)
+                this.selectedShape.points = [...points, { ...points[0] }];
+            }
+        } else if (this.resizeState.type === 'corner') {
+            // Handle corner resizing
+            if (!this.resizeState.bounds) return;
+
+            const bounds = this.resizeState.bounds;
+            const width = bounds.maxX - bounds.minX;
+            const height = bounds.maxY - bounds.minY;
+
+            if (width === 0 || height === 0) return;
+
+            const deltaX = currentPoint.x - this.resizeState.startPoint.x;
+            const deltaY = currentPoint.y - this.resizeState.startPoint.y;
+
+            let scaleX = 1;
+            let scaleY = 1;
+            let translateX = 0;
+            let translateY = 0;
+
+            switch (this.resizeState.handleIndex) {
+                case 0: // NW
+                    scaleX = (width - deltaX) / width;
+                    scaleY = (height - deltaY) / height;
+                    translateX = deltaX;
+                    translateY = deltaY;
+                    break;
+                case 1: // NE
+                    scaleX = (width + deltaX) / width;
+                    scaleY = (height - deltaY) / height;
+                    translateY = deltaY;
+                    break;
+                case 2: // SE
+                    scaleX = (width + deltaX) / width;
+                    scaleY = (height + deltaY) / height;
+                    break;
+                case 3: // SW
+                    scaleX = (width - deltaX) / width;
+                    scaleY = (height + deltaY) / height;
+                    translateX = deltaX;
+                    break;
+            }
+
+            // Update all points including the closing point
+            this.selectedShape.points = this.resizeState.originalPoints.map(p => {
+                const projected = this.map.project([p.lng, p.lat]);
+                const relativeX = projected.x - bounds.minX;
+                const relativeY = projected.y - bounds.minY;
+
+                const newX = bounds.minX + translateX + (relativeX * scaleX);
+                const newY = bounds.minY + translateY + (relativeY * scaleY);
+
+                const newLngLat = this.map.unproject([newX, newY]);
+                return {
+                    lng: newLngLat.lng,
+                    lat: newLngLat.lat
+                };
+            });
+        }
+
+        this.emit(EVENTS.SHAPE_MOVE, {
+            id: this.selectedShape.id,
+            points: this.selectedShape.points
+        });
     } else {
-      this.handleShapeResize(point);
-    }
-
-    if (this.selectedShape.type === 'dimension') {
-      this.updateDimensionMeasurement();
+        // Handle other shapes
+        this.handleShapeResize(point);
     }
 
     requestAnimationFrame(() => {
-      this.canvasManager.redraw();
+        this.canvasManager.redraw();
     });
   }
 
@@ -454,88 +668,37 @@ export class SelectTool extends BaseTool {
     });
   }
 
-  private getClickedHandle(point: Point): { index: number; type?: 'corner' | 'endpoint' | 'vertex' } | null {
-    if (!this.selectedShape) return null;
+  private getClickedHandle(point: { x: number; y: number }, bounds: any): { index: number; type?: 'corner' | 'endpoint' | 'vertex' | 'rotate' } | null {
+    // First check for vertex handles if it's a polygon
+    if (this.selectedShape?.type === 'polygon') {
+        const projectedPoints = this.selectedShape.points.map(p => {
+            const projected = this.map.project([p.lng, p.lat]);
+            return { x: projected.x, y: projected.y };
+        });
 
-    const projectedPoint = this.map.project([point.lng, point.lat]);
-
-    // Handle polygons - check each vertex
-    if (this.selectedShape.type === 'polygon') {
-      const projectedPoints = this.selectedShape.points.map(p => 
-        this.map.project([p.lng, p.lat])
-      );
-      
-      // Only check vertices up to but not including the last point (which is the closing point)
-      const pointsToCheck = projectedPoints.slice(0, -1);
-
-      for (let i = 0; i < pointsToCheck.length; i++) {
-        if (this.selectionBox.isHandleHit(projectedPoint, pointsToCheck[i])) {
-          return { index: i, type: 'vertex' };
+        // Check all vertices except the last one (which is the same as first for polygons)
+        for (let i = 0; i < projectedPoints.length - 1; i++) {
+            if (this.selectionBox.isHandleHit(point, projectedPoints[i])) {
+                return { index: i, type: 'vertex' };
+            }
         }
-      }
     }
 
-    // Handle signs
-    if (this.selectedShape.type === 'sign') {
-      const signPoint = this.selectedShape.points[0];
-      const size = this.selectedShape.signData?.size || 64;
-      const bounds = calculateSignBounds(signPoint, size, this.map);
+    // Then check corner handles
+    const padding = 10;
+    const handles = [
+        { x: bounds.minX - padding, y: bounds.minY - padding }, // NW
+        { x: bounds.maxX + padding, y: bounds.minY - padding }, // NE
+        { x: bounds.maxX + padding, y: bounds.maxY + padding }, // SE
+        { x: bounds.minX - padding, y: bounds.maxY + padding }  // SW
+    ];
 
-      const handles = [
-        { x: bounds.minX, y: bounds.minY }, // NW
-        { x: bounds.maxX, y: bounds.minY }, // NE
-        { x: bounds.maxX, y: bounds.maxY }, // SE
-        { x: bounds.minX, y: bounds.maxY }  // SW
-      ];
-
-      for (let i = 0; i < handles.length; i++) {
-        if (this.selectionBox.isHandleHit(projectedPoint, handles[i])) {
-          return { index: i, type: 'corner' };
+    const hitDistance = 16;
+    for (let i = 0; i < handles.length; i++) {
+        const distance = Math.hypot(point.x - handles[i].x, point.y - handles[i].y);
+        if (distance <= hitDistance) {
+            return { index: i, type: 'corner' };
         }
-      }
-    }
-
-    // Handle lines, arrows, and dimensions - only endpoint handles
-    if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
-      const projectedPoints = this.selectedShape.points.map(p => 
-        this.map.project([p.lng, p.lat])
-      );
-
-      for (let i = 0; i < projectedPoints.length; i++) {
-        if (this.selectionBox.isHandleHit(projectedPoint, projectedPoints[i])) {
-          return { index: i, type: 'endpoint' };
-        }
-      }
-    }
-
-    // Handle rectangles and polygons - only corner handles
-    if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
-      const projectedPoints = this.selectedShape.points.map(p => 
-        this.map.project([p.lng, p.lat])
-      );
-      
-      const xs = projectedPoints.map(p => p.x);
-      const ys = projectedPoints.map(p => p.y);
-      
-      const bounds = {
-        minX: Math.min(...xs),
-        minY: Math.min(...ys),
-        maxX: Math.max(...xs),
-        maxY: Math.max(...ys)
-      };
-
-      const handles = [
-        { x: bounds.minX, y: bounds.minY }, // NW
-        { x: bounds.maxX, y: bounds.minY }, // NE
-        { x: bounds.maxX, y: bounds.maxY }, // SE
-        { x: bounds.minX, y: bounds.maxY }  // SW
-      ];
-
-      for (let i = 0; i < handles.length; i++) {
-        if (this.selectionBox.isHandleHit(projectedPoint, handles[i])) {
-          return { index: i, type: 'corner' };
-        }
-      }
     }
 
     return null;
@@ -619,7 +782,7 @@ export class SelectTool extends BaseTool {
       const point = this.selectedShape.points[0];
       const size = this.selectedShape.signData?.size || 64;
       const bounds = calculateSignBounds(point, size, this.map);
-      this.selectionBox.drawBox(bounds);
+      this.selectionBox.drawBox(bounds, undefined, this.selectedShape.type);
     } else if (['line', 'arrow', 'dimension'].includes(this.selectedShape.type)) {
       // Existing line selection code
       const projectedPoints = this.selectedShape.points.map(p => {
@@ -628,33 +791,15 @@ export class SelectTool extends BaseTool {
       });
       
       const bounds = this.calculateBounds(projectedPoints);
-      ctx.beginPath();
-      ctx.strokeStyle = '#1E3A8A';
-      ctx.setLineDash([4, 4]);
-      ctx.lineWidth = 1;
-      
-      const padding = 4;
-      ctx.strokeRect(
-        bounds.minX - padding,
-        bounds.minY - padding,
-        bounds.maxX - bounds.minX + padding * 2,
-        bounds.maxY - bounds.minY + padding * 2
-      );
-      
-      ctx.setLineDash([]);
-      
-      projectedPoints.forEach(point => {
-        this.selectionBox.drawHandle(point.x, point.y);
-      });
+      this.selectionBox.drawBox(bounds, projectedPoints, this.selectedShape.type);
     } else if (['rectangle', 'polygon'].includes(this.selectedShape.type)) {
-      // Existing rectangle/polygon selection code
       const projectedPoints = this.selectedShape.points.map(p => {
         const projected = this.map.project([p.lng, p.lat]);
         return { x: projected.x, y: projected.y };
       });
       
       const bounds = this.calculateBounds(projectedPoints);
-      this.selectionBox.drawBox(bounds, projectedPoints);
+      this.selectionBox.drawBox(bounds, projectedPoints, this.selectedShape.type);
     }
 
     ctx.restore();

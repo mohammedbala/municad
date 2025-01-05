@@ -12,6 +12,7 @@ interface SignShape {
     url: string;
     name: string;
     size: number;
+    rotation?: number;
   };
   id: string;
 }

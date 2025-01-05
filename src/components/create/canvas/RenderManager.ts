@@ -129,16 +129,17 @@ export class RenderManager {
           return;
         }
 
-        console.log('RenderManager: Drawing sign with data:', {
-          point: shape.points[0],
-          url: shape.signData.url,
-          size: shape.signData.size
-        });
+        // console.log('RenderManager: Drawing sign with data:', {
+        //   point: shape.points[0],
+        //   url: shape.signData.url,
+        //   size: shape.signData.size
+        // });
 
         this.canvasManager.drawSign(
           shape.points[0],
           shape.signData.url,
-          shape.signData.size || 64
+          shape.signData.size || 64,
+          shape.signData.rotation || 0
         );
         break;
     }

@@ -315,44 +315,44 @@ export class CanvasManager {
     }
   }
 
-  public drawSign(point: Point, url: string, size: number = 64) {
-    console.log('CanvasManager: Drawing sign:', { point, url, size }); // Debug log
-    
+  public drawSign(point: Point, url: string, size: number = 64, rotation: number = 0) {
     const projected = this.map.project([point.lng, point.lat]);
     
     let img = this.signCache.get(url);
     if (!img) {
-      console.log('CanvasManager: Creating new image for URL:', url); // Debug log
-      img = new Image();
-      img.crossOrigin = "anonymous"; // Add this line to handle CORS
-      img.src = url;
-      this.signCache.set(url, img);
-      
-      img.onerror = (e) => {
-        console.error('CanvasManager: Failed to load sign image:', url, e); // Debug error
-        this.signCache.delete(url);
-      };
+        img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = url;
+        this.signCache.set(url, img);
+        
+        img.onerror = (e) => {
+            console.error('CanvasManager: Failed to load sign image:', url, e);
+            this.signCache.delete(url);
+        };
     }
 
     if (img.complete) {
-      console.log('CanvasManager: Image is loaded, drawing to canvas'); // Debug log
-      try {
-        this.ctx.drawImage(
-          img,
-          projected.x - size / 2,
-          projected.y - size / 2,
-          size,
-          size
-        );
-      } catch (e) {
-        console.error('CanvasManager: Error drawing image:', e); // Debug error
-      }
+        this.ctx.save();
+        this.ctx.translate(projected.x, projected.y);
+        // Convert degrees to radians
+        const rotationInRadians = (rotation * Math.PI) / 180;
+        this.ctx.rotate(rotationInRadians);
+        try {
+            this.ctx.drawImage(
+                img,
+                -size / 2,
+                -size / 2,
+                size,
+                size
+            );
+        } catch (e) {
+            console.error('CanvasManager: Error drawing image:', e);
+        }
+        this.ctx.restore();
     } else {
-      console.log('CanvasManager: Image not loaded yet, setting onload handler'); // Debug log
-      img.onload = () => {
-        console.log('CanvasManager: Image loaded, triggering redraw'); // Debug log
-        this.redraw();
-      };
+        img.onload = () => {
+            this.redraw();
+        };
     }
   }
 
