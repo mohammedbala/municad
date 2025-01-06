@@ -51,11 +51,16 @@ export class DimensionTool extends BaseTool {
       this.endPoint = point;
       const points = [this.startPoint, this.endPoint];
       const measurement = this.calculateDistance();
+      
+      // Emit the shape with both points and measurement
       this.emit(EVENTS.SHAPE_COMPLETE, {
         type: 'dimension',
         points,
-        measurement
+        measurement,
+        color: this.style.lineColor,
+        thickness: this.style.lineThickness
       });
+      
       this.startPoint = null;
       this.endPoint = null;
       this.isDrawing = false;

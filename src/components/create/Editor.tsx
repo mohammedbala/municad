@@ -17,6 +17,7 @@ import { SettingsModal } from './SettingsModal';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { ContextMenu } from './ContextMenu';
+import { MAP_STYLES } from './Map';
 
 export function Editor() {
   const [searchParams] = useSearchParams();
@@ -70,10 +71,19 @@ export function Editor() {
   const [canvasManager, setCanvasManager] = useState<CanvasManager | null>(null);
   const linesRef = useRef<DrawnLine[]>([]);
 
-  useEffect(() => {
-    console.log('Component mounted');
-    return () => console.log('Component unmounted');
-  }, []);
+  const [mapStyle, setMapStyle] = useState(MAP_STYLES.STREETS);
+
+  const debugShape = (prefix: string, shape: DrawnLine | null) => {
+    console.group(prefix);
+    console.log('Shape:', {
+      id: shape?.id,
+      type: shape?.type,
+      fillColor: shape?.fillColor,
+      color: shape?.color,
+      thickness: shape?.thickness
+    });
+    console.groupEnd();
+  };
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -95,23 +105,36 @@ export function Editor() {
     const handleShapeUpdate = (data: {
       id: string;
       color?: string;
-      fillColor?: string;
-      thickness?: number;
+      fillColor?: string | null;
       size?: number;
       fontColor?: string;
     }) => {
-      setDrawnLines(prev => prev.map(line =>
-        line.id === data.id
-          ? {
-            ...line,
-            color: data.color || line.color,
-            fillColor: data.fillColor || line.fillColor,
-            thickness: data.thickness ?? line.thickness,
-            size: data.size ?? line.size,
-            fontColor: data.fontColor ?? line.fontColor
-          }
-          : line
-      ));
+      console.log('SHAPE_UPDATE event received:', data);
+      setDrawnLines(prev => {
+        const prevShape = prev.find(line => line.id === data.id);
+        if (!prevShape) return prev;
+
+        const updated = prev.map(line =>
+          line.id === data.id
+            ? {
+              ...line,
+              color: data.color ?? line.color,
+              fillColor: data.fillColor === undefined ? line.fillColor : data.fillColor,
+              size: data.size ?? line.size,
+              fontColor: data.fontColor ?? line.fontColor
+            }
+            : line
+        );
+        
+        const updatedShape = updated.find(l => l.id === data.id);
+        console.log('Shape update comparison:', {
+          before: prevShape,
+          after: updatedShape,
+          updateData: data
+        });
+        
+        return updated;
+      });
     };
 
     eventManager.on(EVENTS.SHAPE_UPDATE, handleShapeUpdate);
@@ -125,8 +148,6 @@ export function Editor() {
     points: any[],
     additionalData?: any
   ) => {
-    console.log('handleShapeComplete called:', { type, points, additionalData });
-    
     const newShape: DrawnLine = {
       id: crypto.randomUUID(),
       type: type as DrawnLine['type'],
@@ -139,17 +160,20 @@ export function Editor() {
       hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
       text: type === 'text' ? additionalData?.text : undefined,
       signData: type === 'sign' ? additionalData?.signData : undefined,
+      measurement: type === 'dimension' ? additionalData?.measurement : undefined
     };
 
-    console.log('Adding new shape:', newShape);
     setDrawnLines(prev => {
       const updated = [...prev, newShape];
       linesRef.current = updated;
       setStableDrawnLines(updated);
       return updated;
     });
+    
+    // Update these states immediately after shape creation
     setSelectedTool('select');
     setSelectedLineId(newShape.id);
+    setSelectedShape(newShape);
   };
 
   const handleShapeUpdate = (updatedShape: DrawnLine) => {
@@ -189,26 +213,32 @@ export function Editor() {
     }
   };
 
-  const handleFillColorChange = (color: string) => {
-    setFillColor(color);
+  const handleFillColorChange = (color: string | null) => {
+    console.log('handleFillColorChange called with:', color);
+    setFillColor(color || '#ffffff');
     if (selectedLineId) {
       const selectedShape = drawnLines.find(line => line.id === selectedLineId);
       if (selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon')) {
+        console.log('Updating shape fillColor to:', color);
         setDrawnLines(prev => {
           const updated = prev.map(line =>
             line.id === selectedLineId
-              ? { ...line, fillColor: color }
+              ? { 
+                  ...line, 
+                  fillColor: color // Pass null directly when no fill
+                }
               : line
           );
+          console.log('Updated shape:', updated.find(l => l.id === selectedLineId));
           linesRef.current = updated;
           setStableDrawnLines(updated);
           return updated;
         });
 
-        // Emit the update event for the SelectTool
+        // Emit the update event
         eventManager.emit(EVENTS.SHAPE_UPDATE, {
           id: selectedLineId,
-          fillColor: color
+          fillColor: color // Pass null directly when no fill
         });
       }
     }
@@ -240,26 +270,30 @@ export function Editor() {
   });
 
   useEffect(() => {
-    console.log('Lines state check:', {
-      drawnLines,
-      stableDrawnLines,
-      linesRef: linesRef.current,
-      drawnLinesCount: drawnLines.length,
-      stableDrawnLinesCount: stableDrawnLines.length,
-      refCount: linesRef.current.length
-    });
-  }, [drawnLines, stableDrawnLines]);
+    console.log('drawnLines updated:', drawnLines.map(shape => ({
+      id: shape.id,
+      type: shape.type,
+      fillColor: shape.fillColor,
+      thickness: shape.thickness
+    })));
+  }, [drawnLines]);
 
   useEffect(() => {
-    console.log('Canvas manager state updated:', canvasManager);
+    console.log('stableDrawnLines updated:', stableDrawnLines.map(shape => ({
+      id: shape.id,
+      type: shape.type,
+      fillColor: shape.fillColor,
+      thickness: shape.thickness
+    })));
+  }, [stableDrawnLines]);
+
+  useEffect(() => {
   }, [canvasManager]);
 
   const handleMapLoad = (map: mapboxgl.Map) => {
-    console.log('Map loaded');
     mapRef.current = map;
     const canvas = document.createElement('canvas');
     const manager = new CanvasManager(canvas, map);
-    console.log('Canvas manager created:', manager);
     setCanvasManager(manager);
   };
 
@@ -272,6 +306,7 @@ export function Editor() {
         setLineColor('#1E3A8A');  // Default blue
         setFillColor('#ffffff');  // Default white
         setLineThickness(1.0);    // Default thickness
+        setHatchPattern('none');  // Reset hatch pattern to none
       }
       setSelectedTool(tool);
     }
@@ -325,19 +360,9 @@ export function Editor() {
 
   useEffect(() => {
     if (drawnLines.length > 0) {
-      console.log('Syncing drawnLines to stable state:', drawnLines);
       setStableDrawnLines(drawnLines);
     }
   }, [drawnLines]);
-
-  useEffect(() => {
-    console.log('Selection state changed:', {
-      selectedLineId,
-      selectedShape,
-      drawnLinesCount: drawnLines.length,
-      stableDrawnLinesCount: stableDrawnLines.length
-    });
-  }, [selectedLineId, selectedShape, drawnLines, stableDrawnLines]);
 
   useEffect(() => {
     (window as any).drawnLines = drawnLines;
@@ -629,25 +654,50 @@ export function Editor() {
   };
 
   const handleLineThicknessChange = (thickness: number) => {
+    console.group('handleLineThicknessChange');
+    console.log('New thickness:', thickness);
+    console.log('Selected ID:', selectedLineId);
+    
     setLineThickness(thickness);
     if (selectedLineId) {
+      const currentShape = drawnLines.find(line => line.id === selectedLineId);
+      debugShape('Current shape before update:', currentShape);
+      
+      // Block other shape update events temporarily
+      const originalEmit = eventManager.emit;
+      eventManager.emit = (event: string, data: any) => {
+        console.log('Blocked event emission:', event, data);
+        return;
+      };
+      
       setDrawnLines(prev => {
-        const updated = prev.map(line =>
-          line.id === selectedLineId
-            ? { ...line, thickness }
-            : line
-        );
+        const updated = prev.map(line => {
+          if (line.id === selectedLineId) {
+            const updatedShape = { ...line, thickness };
+            debugShape('Shape after update:', updatedShape);
+            return updatedShape;
+          }
+          return line;
+        });
+        
+        console.log('All shapes after update:', updated.map(shape => ({
+          id: shape.id,
+          type: shape.type,
+          fillColor: shape.fillColor,
+          thickness: shape.thickness
+        })));
+        
         linesRef.current = updated;
         setStableDrawnLines(updated);
         return updated;
       });
 
-      // Also emit the update event for the SelectTool
-      eventManager.emit(EVENTS.SHAPE_UPDATE, {
-        id: selectedLineId,
-        thickness
-      });
+      // Restore original emit after state update
+      setTimeout(() => {
+        eventManager.emit = originalEmit;
+      }, 0);
     }
+    console.groupEnd();
   };
 
   const handleLineColorChange = (color: string) => {
@@ -658,7 +708,12 @@ export function Editor() {
         setDrawnLines(prev => {
           const updated = prev.map(line =>
             line.id === selectedLineId
-              ? { ...line, color: color }
+              ? {
+                  ...line,
+                  color,
+                  // Explicitly preserve the exact fillColor value (including null)
+                  fillColor: line.fillColor
+                }
               : line
           );
           linesRef.current = updated;
@@ -666,10 +721,11 @@ export function Editor() {
           return updated;
         });
 
-        // Emit the update event for the SelectTool
+        // Emit the update event with the preserved fillColor
         eventManager.emit(EVENTS.SHAPE_UPDATE, {
           id: selectedLineId,
-          color: color
+          color,
+          fillColor: selectedShape.fillColor
         });
       }
     }
@@ -698,13 +754,7 @@ export function Editor() {
         <div className="flex-1 flex flex-col min-w-0">
           <Toolbar
             selectedTool={selectedTool}
-            onToolSelect={(tool) => {
-              if (tool === 'settings') {
-                setSettingsOpen(true);
-              } else {
-                handleToolSelect(tool);
-              }
-            }}
+            onToolSelect={handleToolSelect}
             selectedPageSize={selectedPageSize}
             onPageSizeChange={setSelectedPageSize}
             lineColor={lineColor}
@@ -718,17 +768,13 @@ export function Editor() {
             fontSize={fontSize}
             onFontSizeChange={handleFontSizeChange}
             selectedFeatureId={selectedLineId}
-            selectedShape={selectedShape}
             selectedTextId={selectedLineId && drawnLines.find(line => line.id === selectedLineId)?.type === 'text' ? selectedLineId : null}
-            onDeleteFeature={() => {
-              if (selectedLineId) {
-                setDrawnLines(prev => prev.filter(line => line.id !== selectedLineId));
-                setSelectedLineId(null);
-                setSelectedShape(null);
-              }
-            }}
+            onDeleteFeature={handleDelete}
             hatchPattern={hatchPattern}
             onHatchPatternChange={handleHatchPatternChange}
+            selectedShape={selectedShape}
+            mapStyle={mapStyle}
+            onMapStyleChange={setMapStyle}
           />
           <div className="flex-1 overflow-auto p-4 bg-gray-100">
             <div
@@ -760,6 +806,8 @@ export function Editor() {
                   drawnLines={drawnLines.length > 0 ? drawnLines : stableDrawnLines.length > 0 ? stableDrawnLines : linesRef.current}
                   selectedLineId={selectedLineId}
                   onMapLoad={handleMapLoad}
+                  mapStyle={mapStyle}
+                  onMapStyleChange={setMapStyle}
                 />
               </div>
               <div className="absolute inset-0 pointer-events-none">

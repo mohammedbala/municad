@@ -14,7 +14,8 @@ import {
   FileText,
   MinusSquare,
   Trash2,
-  MousePointer
+  MousePointer,
+  Map as MapIcon
 } from 'lucide-react';
 
 const tools = [
@@ -58,6 +59,11 @@ const hatchPatterns = [
   { id: 'vertical', label: 'Vertical Lines' },
 ];
 
+const mapStyles = [
+  { id: 'mapbox://styles/mapbox/streets-v12', label: 'Street View' },
+  { id: 'mapbox://styles/mapbox/satellite-streets-v12', label: 'Satellite View' },
+];
+
 interface ToolbarProps {
   selectedTool: string | null;
   onToolSelect: (tool: string) => void;
@@ -65,8 +71,8 @@ interface ToolbarProps {
   onPageSizeChange: (size: string) => void;
   lineColor: string;
   onLineColorChange: (color: string) => void;
-  fillColor: string;
-  onFillColorChange: (color: string) => void;
+  fillColor: string | null;
+  onFillColorChange: (color: string | null) => void;
   fontColor: string;
   onFontColorChange: (color: string) => void;
   lineThickness: number;
@@ -79,6 +85,8 @@ interface ToolbarProps {
   hatchPattern: string;
   onHatchPatternChange: (pattern: string) => void;
   selectedShape: DrawnLine | null;
+  mapStyle: string;
+  onMapStyleChange: (style: string) => void;
 }
 
 export function Toolbar({
@@ -101,13 +109,14 @@ export function Toolbar({
   onDeleteFeature,
   hatchPattern,
   onHatchPatternChange,
-  selectedShape
+  selectedShape,
+  mapStyle,
+  onMapStyleChange
 }: ToolbarProps) {
   const hasSelection = selectedFeatureId !== null || selectedTextId !== null;
   const isTextSelected = selectedTextId !== null;
   const showTextControls = selectedTool === 'text' || isTextSelected;
 
-  console.log('selectedShape', selectedShape);
   return (
     <div className="mx-4">
       <div className="bg-white border-4 border-[#1E3A8A] rounded-lg p-2 flex justify-between items-center mt-4 shadow-[4px_4px_0px_0px_rgba(30,58,138,1)]">
@@ -143,13 +152,27 @@ export function Toolbar({
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium text-gray-700">Fill:</span>
-                <input
-                  type="color"
-                  value={fillColor}
-                  onChange={(e) => onFillColorChange(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer"
-                  title="Fill Color"
-                />
+                <div className="flex items-center">
+                  <input
+                    type="color"
+                    value={fillColor || '#ffffff'}
+                    onChange={(e) => onFillColorChange(e.target.value)}
+                    className={`w-8 h-8 rounded cursor-pointer ${!fillColor ? 'opacity-50' : ''}`}
+                    title="Fill Color"
+                    disabled={!fillColor}
+                  />
+                  <button
+                    onClick={() => onFillColorChange(fillColor ? null : '#ffffff')}
+                    className={`ml-1 px-2 py-1 text-xs rounded ${
+                      !fillColor 
+                        ? 'bg-gray-200 text-gray-700' 
+                        : 'bg-white text-gray-600 border border-gray-300'
+                    }`}
+                    title={fillColor ? "Remove Fill" : "Enable Fill"}
+                  >
+                    {fillColor ? "No Fill" : "Fill"}
+                  </button>
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium text-gray-700">Thickness:</span>
@@ -218,6 +241,21 @@ export function Toolbar({
               </div>
             </div>
           )}
+
+          <div className="flex items-center space-x-2 border-l-2 border-gray-200 pl-4">
+            <MapIcon className="w-5 h-5 text-gray-600" />
+            <select
+              value={mapStyle}
+              onChange={(e) => onMapStyleChange(e.target.value)}
+              className="border-2 border-[#1E3A8A] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            >
+              {mapStyles.map((style) => (
+                <option key={style.id} value={style.id}>
+                  {style.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="flex items-center space-x-2 border-l-2 border-gray-200 pl-4">
             <FileText className="w-5 h-5 text-gray-600" />

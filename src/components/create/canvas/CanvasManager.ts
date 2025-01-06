@@ -244,13 +244,10 @@ export class CanvasManager {
     this.ctx.stroke();
   }
 
-  public drawPolygon(points: Point[], strokeColor: string, fillColor: string, thickness: number = 1.0) {
+  public drawPolygon(points: Point[], strokeColor: string, fillColor: string | null, thickness: number = 1.0) {
     if (points.length < 3) return;
 
-    // Save the current context state
     this.ctx.save();
-    
-    // Reset any rotation that might be applied
     this.ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
     
     this.ctx.beginPath();
@@ -263,13 +260,16 @@ export class CanvasManager {
     }
 
     this.ctx.closePath();
-    this.ctx.fillStyle = fillColor;
-    this.ctx.fill();
+    
+    if (fillColor !== null) {
+      this.ctx.fillStyle = fillColor;
+      this.ctx.fill();
+    }
+    
     this.ctx.strokeStyle = strokeColor;
     this.ctx.lineWidth = thickness;
     this.ctx.stroke();
     
-    // Restore the context state
     this.ctx.restore();
   }
 

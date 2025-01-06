@@ -12,6 +12,11 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibW9iYWxhIiwiYSI6ImNsN2MzdnUyczBja3YzcnBoMmttczNrNmUifQ.EuKfnG_-CrRpAGHPMcC93w';
 
+export const MAP_STYLES = {
+  STREETS: 'mapbox://styles/mapbox/streets-v12',
+  SATELLITE: 'mapbox://styles/mapbox/satellite-streets-v12'
+};
+
 interface MapProps {
   viewState: ViewState;
   onViewStateChange: (viewState: ViewState) => void;
@@ -26,6 +31,8 @@ interface MapProps {
   drawnLines: DrawnLine[];
   selectedLineId: string | null;
   onMapLoad?: (map: mapboxgl.Map) => void;
+  mapStyle?: string;
+  onMapStyleChange?: (style: string) => void;
 }
 
 export function MapComponent({
@@ -41,7 +48,9 @@ export function MapComponent({
   onShapeUpdate,
   drawnLines,
   selectedLineId,
-  onMapLoad
+  onMapLoad,
+  mapStyle = MAP_STYLES.STREETS,
+  onMapStyleChange = () => {}
 }: MapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -193,7 +202,7 @@ export function MapComponent({
         {...viewState}
         onMove={evt => onViewStateChange(evt.viewState)}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/streets-v12"
+        mapStyle={mapStyle}
         mapboxAccessToken={MAPBOX_TOKEN}
         onLoad={handleMapLoad}
         dragPan={selectedTool === 'pan'}

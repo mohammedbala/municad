@@ -314,6 +314,22 @@ export class SelectTool extends BaseTool {
     }
 
     this.setCursor('default');
+
+    // When dragging, update measurement for dimension lines
+    if (this.isDragging && this.selectedShape && 
+        this.selectedShape.type === 'dimension' && 
+        this.dragStart && this.originalPoints) {
+        
+        const [start, end] = this.selectedShape.points;
+        const distance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
+        this.selectedShape.measurement = formatMeasurement(distance);
+        
+        this.emit(EVENTS.SHAPE_MOVE, {
+            id: this.selectedShape.id,
+            points: this.selectedShape.points,
+            measurement: this.selectedShape.measurement
+        });
+    }
   };
 
   private handleMouseUp = () => {
@@ -538,6 +554,19 @@ export class SelectTool extends BaseTool {
         this.handleShapeResize(point);
     }
 
+    // Update measurement for dimension lines
+    if (this.selectedShape.type === 'dimension') {
+        const [start, end] = this.selectedShape.points;
+        const distance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
+        this.selectedShape.measurement = formatMeasurement(distance);
+        
+        this.emit(EVENTS.SHAPE_UPDATE, {
+            id: this.selectedShape.id,
+            points: this.selectedShape.points,
+            measurement: this.selectedShape.measurement
+        });
+    }
+
     requestAnimationFrame(() => {
         this.canvasManager.redraw();
     });
@@ -669,7 +698,22 @@ export class SelectTool extends BaseTool {
   }
 
   private getClickedHandle(point: { x: number; y: number }, bounds: any): { index: number; type?: 'corner' | 'endpoint' | 'vertex' | 'rotate' } | null {
-    // First check for vertex handles if it's a polygon
+    // Check for endpoints first if it's a line-type shape
+    if (['line', 'arrow', 'dimension'].includes(this.selectedShape?.type)) {
+        const projectedPoints = this.selectedShape!.points.map(p => {
+            const projected = this.map.project([p.lng, p.lat]);
+            return { x: projected.x, y: projected.y };
+        });
+
+        // Check both start and end points
+        for (let i = 0; i < projectedPoints.length; i++) {
+            if (this.selectionBox.isHandleHit(point, projectedPoints[i])) {
+                return { index: i, type: 'endpoint' };
+            }
+        }
+    }
+
+    // Rest of the existing handle detection logic...
     if (this.selectedShape?.type === 'polygon') {
         const projectedPoints = this.selectedShape.points.map(p => {
             const projected = this.map.project([p.lng, p.lat]);
@@ -719,7 +763,7 @@ export class SelectTool extends BaseTool {
 
     const updates: any = {};
     if (style.lineColor !== undefined) updates.color = style.lineColor;
-    if (style.fillColor !== undefined) updates.fillColor = style.fillColor;
+    if ('fillColor' in style) updates.fillColor = style.fillColor;
     if (style.thickness !== undefined) updates.thickness = style.thickness;
 
     this.emit(EVENTS.SHAPE_UPDATE, {

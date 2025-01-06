@@ -7,19 +7,28 @@ export class RenderManager {
   private selectedShape: DrawnLine | null = null;
   private needsRender: boolean = false;
   private frameId: number | null = null;
+  private lastRenderState: string = '';
 
   constructor(canvasManager: CanvasManager) {
     this.canvasManager = canvasManager;
   }
 
   public setShapes(shapes: DrawnLine[], selectedId: string | null = null) {
+    const newState = JSON.stringify({ shapes, selectedId });
+    if (this.lastRenderState === newState) return;
+
     this.shapes = shapes;
     this.selectedShape = selectedId ? shapes.find(s => s.id === selectedId) || null : null;
+    this.lastRenderState = newState;
     this.requestRender();
   }
 
   public setSelectedShape(shape: DrawnLine | null) {
+    const newState = JSON.stringify(shape);
+    if (this.lastRenderState === newState) return;
+
     this.selectedShape = shape;
+    this.lastRenderState = newState;
     this.requestRender();
   }
 
@@ -31,8 +40,6 @@ export class RenderManager {
   }
 
   public render() {
-    // console.log('RenderManager.render() - Current shapes:', this.shapes);
-    
     this.canvasManager.clear();
 
     // Render non-selected shapes
@@ -44,7 +51,6 @@ export class RenderManager {
 
     // Render selected shape last with selection UI
     if (this.selectedShape) {
-      // console.log('RenderManager: Rendering selected shape:', this.selectedShape);
       this.renderShape(this.selectedShape);
       const selectTool = this.canvasManager.toolManager.getTool('select');
       if (selectTool) {
@@ -57,8 +63,16 @@ export class RenderManager {
     this.frameId = null;
   }
 
-  public renderShape(shape: DrawnLine) {
-    // console.log('RenderManager: Rendering shape:', shape);
+  private renderShape(shape: DrawnLine) {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug("RenderManager.renderShape:", {
+        id: shape.id,
+        type: shape.type,
+        fillColor: shape.fillColor,
+        color: shape.color,
+        thickness: shape.thickness
+      });
+    }
 
     switch (shape.type) {
       case 'line':
@@ -73,7 +87,7 @@ export class RenderManager {
           this.canvasManager.drawHatchedPolygon(
             shape.points,
             shape.color,
-            shape.fillColor || '#ffffff',
+            shape.fillColor,
             shape.hatchPattern,
             shape.thickness
           );
@@ -81,7 +95,7 @@ export class RenderManager {
           this.canvasManager.drawPolygon(
             shape.points,
             shape.color,
-            shape.fillColor || '#ffffff',
+            shape.fillColor,
             shape.thickness
           );
         }
@@ -96,18 +110,8 @@ export class RenderManager {
         break;
       case 'text':
         if (!shape.text) {
-          // console.warn('RenderManager: Text shape missing text property:', shape);
           return;
         }
-
-        // console.log('RenderManager: Drawing text:', {
-        //   point: shape.points[0],
-        //   text: shape.text,
-        //   color: shape.color,
-        //   size: shape.size,
-        //   fontColor: shape.fontColor,
-        //   fillColor: shape.fillColor
-        // });
 
         this.canvasManager.drawText(
           shape.points[0],
@@ -129,12 +133,6 @@ export class RenderManager {
           return;
         }
 
-        // console.log('RenderManager: Drawing sign with data:', {
-        //   point: shape.points[0],
-        //   url: shape.signData.url,
-        //   size: shape.signData.size
-        // });
-
         this.canvasManager.drawSign(
           shape.points[0],
           shape.signData.url,
@@ -153,6 +151,7 @@ export class RenderManager {
     this.needsRender = false;
     this.shapes = [];
     this.selectedShape = null;
+    this.lastRenderState = '';
   }
 
   public getState() {

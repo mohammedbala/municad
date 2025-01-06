@@ -7,20 +7,16 @@ export interface Point {
 
 export interface DrawnLine {
   id: string;
+  type: 'line' | 'arrow' | 'rectangle' | 'polygon' | 'dimension' | 'text' | 'sign';
   points: Point[];
   color: string;
-  type: 'line' | 'rectangle' | 'polygon' | 'dimension' | 'arrow' | 'text' | 'sign';
-  fillColor?: string;
-  fontColor?: string;
-  measurement?: string;
+  fillColor?: string | null;
   thickness?: number;
-  text?: string;
   size?: number;
-  signData?: {
-    url: string;
-    name: string;
-    size?: number;
-  };
+  fontColor?: string;
+  text?: string;
+  signData?: SignData;
+  measurement?: string;
   hatchPattern?: string;
 }
 
