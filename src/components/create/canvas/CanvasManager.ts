@@ -188,30 +188,73 @@ export class CanvasManager {
     this.ctx.restore();
   }
 
-  public drawText(point: Point, text: string, color: string, size: number = 16, fontColor?: string, fillColor?: string) {
+  public drawText(point: Point, text: string, color: string, size: number = 16, fontColor?: string, fillColor?: string, thickness: number = 1, alignment: 'left' | 'center' | 'right' = 'center') {
+    // console.log('CanvasManager.drawText - Drawing text with alignment:', alignment);
     if (!text) return;
 
     const projected = this.map.project([point.lng, point.lat]);
     this.ctx.font = `${size}px Arial`;
     
+    // Split text into lines
+    const lines = text.split('\n');
+    
+    // Calculate metrics for all lines
+    const lineMetrics = lines.map(line => this.ctx.measureText(line));
+    const maxWidth = Math.max(...lineMetrics.map(m => m.width));
+    const lineHeight = size * 1.2;
+    const totalHeight = lineHeight * lines.length;
+    
+    const padding = 10;
+    
+    // Log the alignment calculation
+    // console.log('CanvasManager.drawText - Calculating position for alignment:', alignment);
+    
+    // Adjust x position based on alignment
+    let x: number;
+    switch (alignment) {
+        case 'left':
+            x = projected.x - padding;
+            // console.log('Left alignment, x =', x);
+            break;
+        case 'right':
+            x = projected.x - maxWidth - padding;
+            // console.log('Right alignment, x =', x);
+            break;
+        default: // center
+            x = projected.x - maxWidth / 2 - padding;
+            // console.log('Center alignment, x =', x);
+    }
+    const y = projected.y - totalHeight / 2 - padding;
+    const width = maxWidth + padding * 2;
+    const height = totalHeight + padding * 2;
+
     // Draw background if fillColor is provided
     if (fillColor) {
-      const metrics = this.ctx.measureText(text);
-      const padding = 4;
-      this.ctx.fillStyle = fillColor;
-      this.ctx.fillRect(
-        projected.x - metrics.width / 2 - padding,
-        projected.y - size / 2 - padding,
-        metrics.width + padding * 2,
-        size + padding * 2
-      );
+        this.ctx.fillStyle = fillColor;
+        this.ctx.fillRect(x, y, width, height);
     }
 
-    // Draw text
+    // Draw border with specified thickness
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = thickness;
+    this.ctx.strokeRect(x, y, width, height);
+
+    // Draw each line of text
     this.ctx.fillStyle = fontColor || color;
-    this.ctx.textAlign = 'center';
+    this.ctx.textAlign = alignment;
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(text, projected.x, projected.y);
+    
+    // Adjust x position for text based on alignment
+    const textX = alignment === 'left' ? x + padding : 
+                 alignment === 'right' ? x + width - padding :
+                 projected.x;
+    
+
+    
+    lines.forEach((line, index) => {
+        const lineY = projected.y - (totalHeight / 2) + (lineHeight * index) + (lineHeight / 2);
+        this.ctx.fillText(line, textX, lineY);
+    });
   }
 
   public drawArrow(points: Point[], color: string, thickness: number = 1.0) {

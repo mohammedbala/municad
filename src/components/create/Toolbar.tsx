@@ -15,7 +15,10 @@ import {
   MinusSquare,
   Trash2,
   MousePointer,
-  Map as MapIcon
+  Map as MapIcon,
+  AlignLeft,
+  AlignCenter,
+  AlignRight
 } from 'lucide-react';
 
 const tools = [
@@ -87,6 +90,8 @@ interface ToolbarProps {
   selectedShape: DrawnLine | null;
   mapStyle: string;
   onMapStyleChange: (style: string) => void;
+  textAlignment: 'left' | 'center' | 'right';
+  onTextAlignmentChange: (alignment: 'left' | 'center' | 'right') => void;
 }
 
 export function Toolbar({
@@ -111,7 +116,9 @@ export function Toolbar({
   onHatchPatternChange,
   selectedShape,
   mapStyle,
-  onMapStyleChange
+  onMapStyleChange,
+  textAlignment,
+  onTextAlignmentChange
 }: ToolbarProps) {
   const hasSelection = selectedFeatureId !== null || selectedTextId !== null;
   const isTextSelected = selectedTextId !== null;
@@ -119,173 +126,208 @@ export function Toolbar({
 
   return (
     <div className="mx-4">
-      <div className="bg-white border-4 border-[#1E3A8A] rounded-lg p-2 flex justify-between items-center mt-4 shadow-[4px_4px_0px_0px_rgba(30,58,138,1)]">
-        <div className="flex space-x-2">
-          {tools.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => onToolSelect(tool.id)}
-              className={`p-2 rounded hover:bg-gray-100 relative group ${
-                selectedTool === tool.id ? 'bg-blue-100' : ''
-              }`}
-            >
-              <tool.icon className="w-6 h-6" />
-              <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                {tool.label}
-              </span>
-            </button>
-          ))}
+      <div className="border-2 border-[#1E3A8A] rounded-lg p-1 flex flex-col gap-1 mt-2 shadow-[2px_2px_0px_0px_rgba(30,58,138,1)] h-[72px]">
+        <div className="flex justify-between items-center border-b border-gray-200">
+          <div className="flex space-x-1">
+            {tools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => onToolSelect(tool.id)}
+                className={`p-1 rounded hover:bg-gray-100 relative group ${
+                  selectedTool === tool.id ? 'bg-blue-100' : ''
+                }`}
+              >
+                <tool.icon className="w-4 h-4" />
+                <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  {tool.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 border-l border-gray-200 pl-2">
+              <MapIcon className="w-3 h-3 text-gray-600" />
+              <select
+                value={mapStyle}
+                onChange={(e) => onMapStyleChange(e.target.value)}
+                className="border-2 border-[#1E3A8A] rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+              >
+                {mapStyles.map((style) => (
+                  <option key={style.id} value={style.id}>
+                    {style.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-1 border-l border-gray-200 pl-2">
+              <FileText className="w-3 h-3 text-gray-600" />
+              <select
+                value={selectedPageSize}
+                onChange={(e) => onPageSizeChange(e.target.value)}
+                className="border-2 border-[#1E3A8A] rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+              >
+                {pageSizes.map((size) => (
+                  <option key={size.id} value={size.id}>
+                    {size.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          {selectedFeatureId && (
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Line:</span>
-                <input
-                  type="color"
-                  value={lineColor}
-                  onChange={(e) => onLineColorChange(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer"
-                  title="Line Color"
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Fill:</span>
-                <div className="flex items-center">
-                  <input
-                    type="color"
-                    value={fillColor || '#ffffff'}
-                    onChange={(e) => onFillColorChange(e.target.value)}
-                    className={`w-8 h-8 rounded cursor-pointer ${!fillColor ? 'opacity-50' : ''}`}
-                    title="Fill Color"
-                    disabled={!fillColor}
-                  />
-                  <button
-                    onClick={() => onFillColorChange(fillColor ? null : '#ffffff')}
-                    className={`ml-1 px-2 py-1 text-xs rounded ${
-                      !fillColor 
-                        ? 'bg-gray-200 text-gray-700' 
-                        : 'bg-white text-gray-600 border border-gray-300'
-                    }`}
-                    title={fillColor ? "Remove Fill" : "Enable Fill"}
-                  >
-                    {fillColor ? "No Fill" : "Fill"}
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Thickness:</span>
-                <input
-                  type="number"
-                  value={lineThickness}
-                  onChange={(e) => onLineThicknessChange(Number(e.target.value))}
-                  min={0.25}
-                  max={10}
-                  step={0.25}
-                  className="w-16 px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                />
-              </div>
-              {selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon') && (
+        {(selectedFeatureId || showTextControls) && (
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center space-x-2">
+              {selectedFeatureId && (
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-700">Pattern:</span>
-                  <select
-                    value={hatchPattern}
-                    onChange={(e) => onHatchPatternChange(e.target.value)}
-                    className="border-2 border-[#1E3A8A] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                  >
-                    {hatchPatterns.map((pattern) => (
-                      <option key={pattern.id} value={pattern.id}>
-                        {pattern.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Line Color:</span>
+                    <input
+                      type="color"
+                      value={lineColor}
+                      onChange={(e) => onLineColorChange(e.target.value)}
+                      className="w-5 h-5 rounded cursor-pointer"
+                      title="Line Color"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Fill Color:</span>
+                    <div className="flex items-center">
+                      <input
+                        type="color"
+                        value={fillColor || '#ffffff'}
+                        onChange={(e) => onFillColorChange(e.target.value)}
+                        className={`w-5 h-5 rounded cursor-pointer ${!fillColor ? 'opacity-50' : ''}`}
+                        title="Fill Color"
+                        disabled={!fillColor}
+                      />
+                      <button
+                        onClick={() => onFillColorChange(fillColor ? null : '#ffffff')}
+                        className={`ml-1 px-1 py-0.5 text-xs rounded ${
+                          !fillColor 
+                            ? 'bg-gray-200 text-gray-700' 
+                            : 'bg-white text-gray-600 border border-gray-300'
+                        }`}
+                        title={fillColor ? "Remove Fill" : "Enable Fill"}
+                      >
+                        {fillColor ? "No Fill" : "Fill"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Line Thickness:</span>
+                    <input
+                      type="number"
+                      value={lineThickness}
+                      onChange={(e) => onLineThicknessChange(Number(e.target.value))}
+                      min={0.25}
+                      max={10}
+                      step={0.25}
+                      className="w-12 px-1 py-0.5 text-xs border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                    />
+                  </div>
+                  {selectedShape && (selectedShape.type === 'rectangle' || selectedShape.type === 'polygon') && (
+                    <div className="flex items-center space-x-1">
+                      <span className="text-xs font-medium text-gray-700">Hatch Pattern:</span>
+                      <select
+                        value={hatchPattern}
+                        onChange={(e) => onHatchPatternChange(e.target.value)}
+                        className="border-2 border-[#1E3A8A] rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                      >
+                        {hatchPatterns.map((pattern) => (
+                          <option key={pattern.id} value={pattern.id}>
+                            {pattern.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {showTextControls && (
+                <div className="flex items-center space-x-2 border-l border-gray-200 pl-2">
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Font:</span>
+                    <select
+                      className="border-2 border-[#1E3A8A] rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB] min-w-[120px]"
+                    >
+                      {fonts.map(font => (
+                        <option key={font.id} value={font.id}>{font.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Size:</span>
+                    <input
+                      type="number"
+                      value={fontSize}
+                      onChange={(e) => onFontSizeChange(Number(e.target.value))}
+                      min={8}
+                      max={72}
+                      step={1}
+                      className="w-12 px-1 py-0.5 text-xs border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs font-medium text-gray-700">Font Color:</span>
+                    <input
+                      type="color"
+                      value={fontColor}
+                      onChange={(e) => onFontColorChange(e.target.value)}
+                      className="w-5 h-5 rounded cursor-pointer"
+                      title="Font Color"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1 border-l border-gray-200 pl-2">
+                    <button
+                      onClick={() => onTextAlignmentChange('left')}
+                      className={`p-1 rounded hover:bg-gray-100 ${
+                        textAlignment === 'left' ? 'bg-blue-100' : ''
+                      }`}
+                      title="Align Left"
+                    >
+                      <AlignLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onTextAlignmentChange('center')}
+                      className={`p-1 rounded hover:bg-gray-100 ${
+                        textAlignment === 'center' ? 'bg-blue-100' : ''
+                      }`}
+                      title="Align Center"
+                    >
+                      <AlignCenter className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onTextAlignmentChange('right')}
+                      className={`p-1 rounded hover:bg-gray-100 ${
+                        textAlignment === 'right' ? 'bg-blue-100' : ''
+                      }`}
+                      title="Align Right"
+                    >
+                      <AlignRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          )}
 
-          {showTextControls && (
-            <div className="flex items-center space-x-4 border-l-2 border-gray-200 pl-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Font:</span>
-                <select
-                  className="px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB] min-w-[120px]"
-                >
-                  {fonts.map(font => (
-                    <option key={font.id} value={font.id}>{font.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Size:</span>
-                <input
-                  type="number"
-                  value={fontSize}
-                  onChange={(e) => onFontSizeChange(Number(e.target.value))}
-                  min={8}
-                  max={72}
-                  step={1}
-                  className="w-16 px-2 py-1 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Color:</span>
-                <input
-                  type="color"
-                  value={fontColor}
-                  onChange={(e) => onFontColorChange(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer"
-                  title="Font Color"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center space-x-2 border-l-2 border-gray-200 pl-4">
-            <MapIcon className="w-5 h-5 text-gray-600" />
-            <select
-              value={mapStyle}
-              onChange={(e) => onMapStyleChange(e.target.value)}
-              className="border-2 border-[#1E3A8A] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-            >
-              {mapStyles.map((style) => (
-                <option key={style.id} value={style.id}>
-                  {style.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center space-x-2 border-l-2 border-gray-200 pl-4">
-            <FileText className="w-5 h-5 text-gray-600" />
-            <select
-              value={selectedPageSize}
-              onChange={(e) => onPageSizeChange(e.target.value)}
-              className="border-2 border-[#1E3A8A] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-            >
-              {pageSizes.map((size) => (
-                <option key={size.id} value={size.id}>
-                  {size.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {hasSelection && (
-            <div className="border-l-2 border-gray-200 pl-4">
+            {hasSelection && (
               <button
                 onClick={onDeleteFeature}
-                className="p-2 rounded hover:bg-red-50 text-red-600 group relative"
+                className="p-1 rounded hover:bg-red-50 text-red-600 group relative"
               >
-                <Trash2 className="w-6 h-6" />
-                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                <Trash2 className="w-4 h-4" />
+                <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                   Delete Selected
                 </span>
               </button>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

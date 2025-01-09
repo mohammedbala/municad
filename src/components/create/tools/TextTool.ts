@@ -5,7 +5,7 @@ import { EVENTS } from './EventManager';
 export class TextTool extends BaseTool {
   private isEditing = false;
   private editingPosition: Point | null = null;
-  private textInput: HTMLInputElement | null = null;
+  private textInput: HTMLTextAreaElement | null = null;
 
   activate() {
     const canvas = this.canvasManager.getCanvas();
@@ -36,22 +36,26 @@ export class TextTool extends BaseTool {
     const canvas = this.canvasManager.getCanvas();
     const rect = canvas.getBoundingClientRect();
 
-    this.textInput = document.createElement('input');
+    this.textInput = document.createElement('textarea');
     Object.assign(this.textInput.style, {
       position: 'fixed',
       left: `${rect.left + projected.x}px`,
       top: `${rect.top + projected.y}px`,
       transform: 'translate(-50%, -50%)',
       minWidth: '100px',
+      minHeight: '1em',
       padding: '4px 8px',
-      border: '2px solid #1E3A8A',
+      border: '2px dashed #808080 !important',
       borderRadius: '4px',
-      backgroundColor: 'white',
+      backgroundColor: 'transparent',
       fontSize: '16px',
       zIndex: '1000',
-      color: this.style.fontColor || this.style.lineColor
+      color: this.style.fontColor || this.style.lineColor,
+      resize: 'none',
+      overflow: 'hidden'
     });
 
+    this.textInput.addEventListener('input', this.handleInput);
     this.textInput.addEventListener('keydown', this.handleKeyDown);
     this.textInput.addEventListener('blur', this.handleBlur);
 
@@ -61,6 +65,7 @@ export class TextTool extends BaseTool {
 
   private removeTextInput() {
     if (this.textInput && this.textInput.parentNode) {
+      this.textInput.removeEventListener('input', this.handleInput);
       this.textInput.removeEventListener('keydown', this.handleKeyDown);
       this.textInput.removeEventListener('blur', this.handleBlur);
       this.textInput.parentNode.removeChild(this.textInput);
@@ -70,8 +75,14 @@ export class TextTool extends BaseTool {
     this.editingPosition = null;
   }
 
+  private handleInput = () => {
+    if (!this.textInput) return;
+    this.textInput.style.height = 'auto';
+    this.textInput.style.height = `${this.textInput.scrollHeight}px`;
+  };
+
   private handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault();
       this.completeTextInput();
     } else if (e.key === 'Escape') {
@@ -96,12 +107,23 @@ export class TextTool extends BaseTool {
         additionalData: {
           text,
           fontSize: this.style.fontSize || 16,
-          fontColor: this.style.fontColor || this.style.lineColor
+          fontColor: this.style.fontColor || this.style.lineColor,
+          alignment: this.style.textAlignment || 'center'
         }
       });
     }
 
     this.removeTextInput();
+  }
+
+  public updateAlignment(alignment: 'left' | 'center' | 'right') {
+    if (this.selectedShape) {
+      this.selectedShape.additionalData = {
+        ...this.selectedShape.additionalData,
+        alignment
+      };
+      this.canvasManager.redraw();
+    }
   }
 
   redraw() {

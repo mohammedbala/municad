@@ -304,25 +304,25 @@ export function EditorNavbar({
 
   return (
     <>
-      <div className="bg-white border-b-8 border-[#1E3A8A] py-2">
+      <div className="bg-white border-b-4 border-[#1E3A8A] py-1">
         <div className="mx-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-8">
+            <div className="flex items-center space-x-6">
               <Link to="/" className="flex items-center space-x-2">
-                <SignpostBig className="h-8 w-8 text-[#1E3A8A]" />
-                <span className="text-2xl font-black text-[#1E3A8A]">MUNICAD</span>
+                <SignpostBig className="h-6 w-6 text-[#1E3A8A]" />
+                <span className="text-xl font-black text-[#1E3A8A]">MUNICAD</span>
               </Link>
 
               {/* Search Bar */}
               <div className="relative" ref={searchContainerRef}>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search for an address..."
-                    className="w-96 pl-10 pr-10 py-2 border-2 border-[#1E3A8A] rounded focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                    className="w-96 pl-8 pr-8 py-1.5 border border-[#1E3A8A] rounded focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
                   />
                   {searchQuery && (
                     <button
@@ -365,22 +365,22 @@ export function EditorNavbar({
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <Link 
                 to="/home"
-                className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded"
+                className="flex items-center space-x-1 px-3 py-1.5 hover:bg-gray-100 rounded text-sm"
               >
-                <FolderOpen className="w-5 h-5" />
+                <FolderOpen className="w-4 h-4" />
                 <span>My Projects</span>
               </Link>
 
-              {/* Export Button - Simplified */}
+              {/* Export Button */}
               <button
                 onClick={() => {
                   console.log('Export button clicked');
                   onExportPDF();
                 }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded hover:bg-blue-800"
+                className="flex items-center space-x-1 px-3 py-1.5 bg-blue-900 text-white rounded hover:bg-blue-800 text-sm"
               >
                 <FileDown className="w-4 h-4" />
                 <span>Export as PDF</span>
@@ -400,11 +400,11 @@ export function EditorNavbar({
               <button 
                 onClick={() => handleSave(true)}
                 disabled={isSaving}
-                className="bg-[#1E3A8A] text-white px-6 py-2 font-bold hover:bg-[#2563EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                className="bg-[#1E3A8A] text-white px-4 py-1.5 text-sm font-bold hover:bg-[#2563EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Publishing...</span>
                   </>
                 ) : (

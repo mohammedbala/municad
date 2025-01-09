@@ -19,66 +19,84 @@ export class SelectionBox {
   drawBox(bounds: { minX: number; minY: number; maxX: number; maxY: number }, points?: { x: number; y: number }[], shapeType?: string) {
     this.ctx.save();
     
-    // Draw selection rectangle
+    // Draw selection rectangle (dashed box with padding)
     this.ctx.strokeStyle = '#2196F3';
     this.ctx.lineWidth = 2;
     this.ctx.setLineDash([5, 5]);
     
-    const boxMinX = bounds.minX - this.padding;
-    const boxMinY = bounds.minY - this.padding;
-    const boxMaxX = bounds.maxX + this.padding;
-    const boxMaxY = bounds.maxY + this.padding;
+    // Add padding for text shapes, otherwise use existing logic
+    const padding = shapeType === 'text' ? this.padding : 0;
+    const boxMinX = bounds.minX - padding;
+    const boxMinY = bounds.minY - padding;
+    const boxMaxX = bounds.maxX + padding;
+    const boxMaxY = bounds.maxY + padding;
     const boxWidth = boxMaxX - boxMinX;
     const boxHeight = boxMaxY - boxMinY;
 
     this.ctx.strokeRect(boxMinX, boxMinY, boxWidth, boxHeight);
 
-    // Draw rotate handle and line
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    this.ctx.setLineDash([]);
-    this.ctx.beginPath();
-    this.ctx.moveTo(centerX, bounds.minY - this.padding);
-    this.ctx.lineTo(centerX, bounds.minY - this.rotateHandleOffset);
-    this.ctx.strokeStyle = this.handleStyle.strokeColor;
-    this.ctx.stroke();
-    
-    // Draw the rotate handle
-    this.drawHandle(centerX, bounds.minY - this.rotateHandleOffset);
+    // Draw resize handles at corners based on shape type
+    if (shapeType === 'text') {
+        // For text, draw handles at the padded bounds
+        this.ctx.setLineDash([]);
+        const handles = [
+            { x: boxMinX, y: boxMinY }, // NW
+            { x: boxMaxX, y: boxMinY }, // NE
+            { x: boxMaxX, y: boxMaxY }, // SE
+            { x: boxMinX, y: boxMaxY }  // SW
+        ];
 
-    // Draw resize handles at corners only for signs and polygons
-    if (shapeType === 'sign' || shapeType === 'polygon') {
-      this.ctx.setLineDash([]);
-      const handles = [
-        { x: boxMinX, y: boxMinY }, // NW
-        { x: boxMaxX, y: boxMinY }, // NE
-        { x: boxMaxX, y: boxMaxY }, // SE
-        { x: boxMinX, y: boxMaxY }  // SW
-      ];
+        handles.forEach(handle => {
+            this.drawHandle(handle.x, handle.y);
+        });
+    } else if (shapeType === 'sign' || shapeType === 'polygon') {
+        // For signs and polygons, keep existing behavior
+        this.ctx.setLineDash([]);
+        const handles = [
+            { x: boxMinX, y: boxMinY }, // NW
+            { x: boxMaxX, y: boxMinY }, // NE
+            { x: boxMaxX, y: boxMaxY }, // SE
+            { x: boxMinX, y: boxMaxY }  // SW
+        ];
 
-      handles.forEach(handle => {
-        this.drawHandle(handle.x, handle.y);
-      });
+        handles.forEach(handle => {
+            this.drawHandle(handle.x, handle.y);
+        });
+    }
+
+    // Draw rotate handle and line for applicable shapes
+    if (shapeType === 'sign' || shapeType === 'text') {
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        this.ctx.setLineDash([]);
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, bounds.minY - this.padding);
+        this.ctx.lineTo(centerX, bounds.minY - this.rotateHandleOffset);
+        this.ctx.strokeStyle = this.handleStyle.strokeColor;
+        this.ctx.stroke();
+        
+        // Draw the rotate handle
+        this.drawHandle(centerX, bounds.minY - this.rotateHandleOffset);
     }
 
     // Draw vertex/endpoint handles if points are provided
-    if (points) {
-      points.forEach((point, index) => {
-        // For polygons, skip the last point as it's the same as the first
-        if (shapeType === 'polygon' && 
-            index === points.length - 1 && 
-            point.x === points[0].x && 
-            point.y === points[0].y) {
-          return;
-        }
-        // For lines/arrows/dimensions, only draw the start and end points
-        if (['line', 'arrow', 'dimension'].includes(shapeType || '') && 
-            index < 2) {
-          this.drawVertexHandle(point.x, point.y);
-        } else if (!['line', 'arrow', 'dimension'].includes(shapeType || '')) {
-          // For other shapes, draw all vertex points
-          this.drawVertexHandle(point.x, point.y);
-        }
-      });
+    if (points && !['text', 'sign'].includes(shapeType || '')) {
+        points.forEach((point, index) => {
+            // For polygons, skip the last point as it's the same as the first
+            if (shapeType === 'polygon' && 
+                index === points.length - 1 && 
+                point.x === points[0].x && 
+                point.y === points[0].y) {
+                return;
+            }
+            // For lines/arrows/dimensions, only draw the start and end points
+            if (['line', 'arrow', 'dimension'].includes(shapeType || '') && 
+                index < 2) {
+                this.drawVertexHandle(point.x, point.y);
+            } else if (!['line', 'arrow', 'dimension'].includes(shapeType || '')) {
+                // For other shapes, draw all vertex points
+                this.drawVertexHandle(point.x, point.y);
+            }
+        });
     }
 
     this.ctx.restore();

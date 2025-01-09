@@ -73,6 +73,8 @@ export function Editor() {
 
   const [mapStyle, setMapStyle] = useState(MAP_STYLES.STREETS);
 
+  const [textAlignment, setTextAlignment] = useState<'left' | 'center' | 'right'>('center');
+
   const debugShape = (prefix: string, shape: DrawnLine | null) => {
     console.group(prefix);
     console.log('Shape:', {
@@ -108,6 +110,7 @@ export function Editor() {
       fillColor?: string | null;
       size?: number;
       fontColor?: string;
+      alignment?: 'left' | 'center' | 'right';
     }) => {
       console.log('SHAPE_UPDATE event received:', data);
       setDrawnLines(prev => {
@@ -121,7 +124,8 @@ export function Editor() {
               color: data.color ?? line.color,
               fillColor: data.fillColor === undefined ? line.fillColor : data.fillColor,
               size: data.size ?? line.size,
-              fontColor: data.fontColor ?? line.fontColor
+              fontColor: data.fontColor ?? line.fontColor,
+              alignment: data.alignment ?? line.alignment
             }
             : line
         );
@@ -160,20 +164,23 @@ export function Editor() {
       hatchPattern: type === 'rectangle' || type === 'polygon' ? hatchPattern : undefined,
       text: type === 'text' ? additionalData?.text : undefined,
       signData: type === 'sign' ? additionalData?.signData : undefined,
-      measurement: type === 'dimension' ? additionalData?.measurement : undefined
+      measurement: type === 'dimension' ? additionalData?.measurement : undefined,
+      alignment: type === 'text' ? (additionalData?.alignment || textAlignment) : undefined
     };
 
     setDrawnLines(prev => {
       const updated = [...prev, newShape];
       linesRef.current = updated;
       setStableDrawnLines(updated);
+      
+      requestAnimationFrame(() => {
+        setSelectedTool('select');
+        setSelectedLineId(newShape.id);
+        setSelectedShape(newShape);
+      });
+      
       return updated;
     });
-    
-    // Update these states immediately after shape creation
-    setSelectedTool('select');
-    setSelectedLineId(newShape.id);
-    setSelectedShape(newShape);
   };
 
   const handleShapeUpdate = (updatedShape: DrawnLine) => {
@@ -731,6 +738,33 @@ export function Editor() {
     }
   };
 
+  const handleTextAlignmentChange = (alignment: 'left' | 'center' | 'right') => {
+    setTextAlignment(alignment);
+    if (selectedLineId) {
+      setDrawnLines(prev => {
+        const updated = prev.map(line =>
+          line.id === selectedLineId
+            ? { ...line, alignment }
+            : line
+        );
+        linesRef.current = updated;
+        setStableDrawnLines(updated);
+        return updated;
+      });
+
+      // Emit the update event
+      eventManager.emit(EVENTS.SHAPE_UPDATE, {
+        id: selectedLineId,
+        alignment
+      });
+
+      // Force a redraw
+      if (canvasManager) {
+        canvasManager.redraw();
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen" onContextMenu={handleContextMenu}>
       <EditorNavbar
@@ -775,6 +809,8 @@ export function Editor() {
             selectedShape={selectedShape}
             mapStyle={mapStyle}
             onMapStyleChange={setMapStyle}
+            textAlignment={textAlignment}
+            onTextAlignmentChange={handleTextAlignmentChange}
           />
           <div className="flex-1 overflow-auto p-4 bg-gray-100">
             <div

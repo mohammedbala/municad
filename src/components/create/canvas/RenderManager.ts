@@ -7,28 +7,19 @@ export class RenderManager {
   private selectedShape: DrawnLine | null = null;
   private needsRender: boolean = false;
   private frameId: number | null = null;
-  private lastRenderState: string = '';
 
   constructor(canvasManager: CanvasManager) {
     this.canvasManager = canvasManager;
   }
 
   public setShapes(shapes: DrawnLine[], selectedId: string | null = null) {
-    const newState = JSON.stringify({ shapes, selectedId });
-    if (this.lastRenderState === newState) return;
-
     this.shapes = shapes;
     this.selectedShape = selectedId ? shapes.find(s => s.id === selectedId) || null : null;
-    this.lastRenderState = newState;
     this.requestRender();
   }
 
   public setSelectedShape(shape: DrawnLine | null) {
-    const newState = JSON.stringify(shape);
-    if (this.lastRenderState === newState) return;
-
     this.selectedShape = shape;
-    this.lastRenderState = newState;
     this.requestRender();
   }
 
@@ -40,6 +31,8 @@ export class RenderManager {
   }
 
   public render() {
+    // console.log('RenderManager.render - All shapes:', this.shapes);
+    
     this.canvasManager.clear();
 
     // Render non-selected shapes
@@ -51,6 +44,7 @@ export class RenderManager {
 
     // Render selected shape last with selection UI
     if (this.selectedShape) {
+      // console.log('RenderManager: Rendering selected shape:', this.selectedShape);
       this.renderShape(this.selectedShape);
       const selectTool = this.canvasManager.toolManager.getTool('select');
       if (selectTool) {
@@ -63,17 +57,7 @@ export class RenderManager {
     this.frameId = null;
   }
 
-  private renderShape(shape: DrawnLine) {
-    if (process.env.NODE_ENV === 'development') {
-      console.debug("RenderManager.renderShape:", {
-        id: shape.id,
-        type: shape.type,
-        fillColor: shape.fillColor,
-        color: shape.color,
-        thickness: shape.thickness
-      });
-    }
-
+  public renderShape(shape: DrawnLine) {
     switch (shape.type) {
       case 'line':
         this.canvasManager.drawLine(shape.points, shape.color, shape.thickness);
@@ -87,7 +71,7 @@ export class RenderManager {
           this.canvasManager.drawHatchedPolygon(
             shape.points,
             shape.color,
-            shape.fillColor,
+            shape.fillColor || '',
             shape.hatchPattern,
             shape.thickness
           );
@@ -110,8 +94,11 @@ export class RenderManager {
         break;
       case 'text':
         if (!shape.text) {
+          console.warn('RenderManager: Text shape missing text property:', shape);
           return;
         }
+
+
 
         this.canvasManager.drawText(
           shape.points[0],
@@ -119,7 +106,9 @@ export class RenderManager {
           shape.color,
           shape.size || 16,
           shape.fontColor || shape.color,
-          shape.fillColor
+          shape.fillColor,
+          shape.thickness,
+          shape.alignment
         );
         break;
       case 'sign':
@@ -151,7 +140,6 @@ export class RenderManager {
     this.needsRender = false;
     this.shapes = [];
     this.selectedShape = null;
-    this.lastRenderState = '';
   }
 
   public getState() {
@@ -165,5 +153,21 @@ export class RenderManager {
     this.shapes = state.shapes;
     this.selectedShape = state.selectedShape;
     this.requestRender();
+  }
+
+  private renderText(shape: DrawnLine) {
+    if (!shape.points[0] || !shape.text) return;
+    
+
+    this.canvasManager.drawText(
+      shape.points[0],
+      shape.text,
+      shape.color,
+      shape.size,
+      shape.fontColor,
+      shape.fillColor || undefined,
+      shape.thickness,
+      shape.alignment
+    );
   }
 }

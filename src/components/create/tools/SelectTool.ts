@@ -33,6 +33,7 @@ export class SelectTool extends BaseTool {
   private textInput: HTMLInputElement | null = null;
   private isEditing = false;
   private currentCursor: string = 'default';
+  private originalText: string | null = null;
 
   constructor(canvasManager: any, map: any) {
     super(canvasManager, map);
@@ -98,6 +99,10 @@ export class SelectTool extends BaseTool {
   private startTextEditing() {
     if (!this.selectedShape || this.selectedShape.type !== 'text' || this.isEditing) return;
 
+    this.originalText = this.selectedShape.text;
+    this.selectedShape.text = '';
+    this.canvasManager.redraw();
+
     this.isEditing = true;
     const point = this.selectedShape.points[0];
     const projected = this.map.project([point.lng, point.lat]);
@@ -111,19 +116,20 @@ export class SelectTool extends BaseTool {
       top: `${rect.top + projected.y}px`,
       transform: 'translate(-50%, -50%)',
       minWidth: '100px',
-      padding: '4px 8px',
-      border: '2px solid #1E3A8A',
-      borderRadius: '4px',
-      backgroundColor: 'white',
+      padding: '0',
+      border: 'none',
+      outline: 'none',
+      backgroundColor: 'transparent',
       fontSize: `${this.selectedShape.size || 16}px`,
       color: this.selectedShape.fontColor || this.selectedShape.color,
       zIndex: '1000',
       textAlign: 'center'
     });
 
-    this.textInput.value = this.selectedShape.text || '';
+    this.textInput.value = this.originalText || '';
     this.textInput.addEventListener('keydown', this.handleTextKeyDown);
     this.textInput.addEventListener('blur', this.handleTextBlur);
+    this.textInput.addEventListener('input', this.handleTextInput);
 
     document.body.appendChild(this.textInput);
     this.textInput.focus();
@@ -136,6 +142,7 @@ export class SelectTool extends BaseTool {
       this.completeTextEditing();
     } else if (e.key === 'Escape') {
       this.removeTextInput();
+      this.canvasManager.redraw();
     }
   };
 
@@ -145,28 +152,58 @@ export class SelectTool extends BaseTool {
     }
   };
 
+  private handleTextInput = (e: Event) => {
+    if (!this.textInput || !this.selectedShape) return;
+    
+    const canvas = this.canvasManager.getCanvas();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Calculate new bounds based on current input text
+    const bounds = calculateTextBounds(
+      this.selectedShape.points[0],
+      this.textInput.value,
+      this.selectedShape.size || 16,
+      this.map,
+      ctx
+    );
+
+    // Redraw the canvas with selection box
+    this.canvasManager.clear();
+    this.canvasManager.drawShapes();
+    this.drawSelectionBox(bounds);
+  };
+
   private completeTextEditing() {
     if (!this.textInput || !this.selectedShape || !this.isEditing) return;
 
     const newText = this.textInput.value.trim();
-    if (newText && newText !== this.selectedShape.text) {
+    if (newText && newText !== this.originalText) {
+      this.selectedShape.text = newText;
       this.emit(EVENTS.SHAPE_UPDATE, {
         id: this.selectedShape.id,
         text: newText
       });
+    } else {
+      // If text is empty or unchanged, restore original text
+      this.selectedShape.text = this.originalText || '';
     }
 
     this.removeTextInput();
+    this.canvasManager.redraw();
   }
 
   private removeTextInput() {
     if (this.textInput && this.textInput.parentNode) {
       this.textInput.removeEventListener('keydown', this.handleTextKeyDown);
       this.textInput.removeEventListener('blur', this.handleTextBlur);
+      this.textInput.removeEventListener('input', this.handleTextInput);
       this.textInput.parentNode.removeChild(this.textInput);
       this.textInput = null;
     }
+    
     this.isEditing = false;
+    this.originalText = null;
   }
 
   private handleMouseDown = (e: MouseEvent) => {
@@ -181,6 +218,32 @@ export class SelectTool extends BaseTool {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
     };
+
+    // Add text bounds check
+    if (this.selectedShape && this.selectedShape.type === 'text') {
+        const bounds = calculateTextBounds(
+            this.selectedShape.points[0],
+            this.selectedShape.text || '',
+            this.selectedShape.size || 16,
+            this.map,
+            this.canvasManager.getContext()
+        );
+
+        const padding = 8;
+        const isInTextBounds = 
+            canvasPoint.x >= bounds.minX - padding &&
+            canvasPoint.x <= bounds.maxX + padding &&
+            canvasPoint.y >= bounds.minY - padding &&
+            canvasPoint.y <= bounds.maxY + padding;
+
+        if (isInTextBounds) {
+            this.dragStart = point;
+            this.isDragging = true;
+            this.originalPoints = [...this.selectedShape.points];
+            canvas.style.cursor = 'move';
+            return;
+        }
+    }
 
     if (this.selectedShape && this.selectedShape.type === 'sign') {
         const signPoint = this.selectedShape.points[0];
@@ -250,36 +313,37 @@ export class SelectTool extends BaseTool {
     if (!point) return;
 
     // Handle dragging
-    if (this.isDragging && this.selectedShape && this.dragStart) {
-      const deltaLng = point.lng - this.dragStart.lng;
-      const deltaLat = point.lat - this.dragStart.lat;
+    if (this.isDragging && this.selectedShape && this.dragStart && this.originalPoints) {
+        const deltaLng = point.lng - this.dragStart.lng;
+        const deltaLat = point.lat - this.dragStart.lat;
 
-      if (this.selectedShape.type === 'sign') {
-        // For signs, we only need to update the single point
-        this.selectedShape.points = [
-          {
-            lng: this.originalPoints![0].lng + deltaLng,
-            lat: this.originalPoints![0].lat + deltaLat
-          }
-        ];
-      } else {
-        // For other shapes, update all points
-        this.selectedShape.points = this.originalPoints!.map(p => ({
-          lng: p.lng + deltaLng,
-          lat: p.lat + deltaLat
-        }));
-      }
+        // Update points based on shape type
+        if (this.selectedShape.type === 'text' || this.selectedShape.type === 'sign') {
+            // For text and signs, we only need to update the single point
+            this.selectedShape.points = [
+                {
+                    lng: this.originalPoints[0].lng + deltaLng,
+                    lat: this.originalPoints[0].lat + deltaLat
+                }
+            ];
+        } else {
+            // For other shapes, update all points
+            this.selectedShape.points = this.originalPoints.map(p => ({
+                lng: p.lng + deltaLng,
+                lat: p.lat + deltaLat
+            }));
+        }
 
-      // Emit the shape move event
-      this.emit(EVENTS.SHAPE_MOVE, {
-        id: this.selectedShape.id,
-        points: this.selectedShape.points
-      });
+        // Emit the shape move event
+        this.emit(EVENTS.SHAPE_MOVE, {
+            id: this.selectedShape.id,
+            points: this.selectedShape.points
+        });
 
-      requestAnimationFrame(() => {
-        this.canvasManager.redraw();
-      });
-      return;
+        requestAnimationFrame(() => {
+            this.canvasManager.redraw();
+        });
+        return;
     }
 
     if (this.isResizing && this.resizeState) {
@@ -698,6 +762,26 @@ export class SelectTool extends BaseTool {
   }
 
   private getClickedHandle(point: { x: number; y: number }, bounds: any): { index: number; type?: 'corner' | 'endpoint' | 'vertex' | 'rotate' } | null {
+    if (!bounds) return null;
+
+    if (this.selectedShape?.type === 'text') {
+      const handles = [
+        { x: bounds.minX, y: bounds.minY }, // NW
+        { x: bounds.maxX, y: bounds.minY }, // NE
+        { x: bounds.maxX, y: bounds.maxY }, // SE
+        { x: bounds.minX, y: bounds.maxY }  // SW
+      ];
+
+      const hitDistance = 16;
+      for (let i = 0; i < handles.length; i++) {
+        const distance = Math.hypot(point.x - handles[i].x, point.y - handles[i].y);
+        if (distance <= hitDistance) {
+          return { index: i, type: 'corner' };
+        }
+      }
+      return null;
+    }
+
     // Check for endpoints first if it's a line-type shape
     if (['line', 'arrow', 'dimension'].includes(this.selectedShape?.type)) {
         const projectedPoints = this.selectedShape!.points.map(p => {
@@ -801,21 +885,21 @@ export class SelectTool extends BaseTool {
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       
-      const padding = 8; // Add some padding around the text
+      // Draw selection box at the text bounds (without padding)
       ctx.strokeRect(
-        bounds.minX - padding,
-        bounds.minY - padding,
-        bounds.maxX - bounds.minX + padding * 2,
-        bounds.maxY - bounds.minY + padding * 2
+        bounds.minX,
+        bounds.minY,
+        bounds.maxX - bounds.minX,
+        bounds.maxY - bounds.minY
       );
 
-      // Draw resize handles at corners
+      // Draw resize handles at corners of the text bounds (not the selection box)
       ctx.setLineDash([]);
       const handles = [
-        { x: bounds.minX - padding, y: bounds.minY - padding }, // NW
-        { x: bounds.maxX + padding, y: bounds.minY - padding }, // NE
-        { x: bounds.maxX + padding, y: bounds.maxY + padding }, // SE
-        { x: bounds.minX - padding, y: bounds.maxY + padding }  // SW
+        { x: bounds.minX, y: bounds.minY }, // NW
+        { x: bounds.maxX, y: bounds.minY }, // NE
+        { x: bounds.maxX, y: bounds.maxY }, // SE
+        { x: bounds.minX, y: bounds.maxY }  // SW
       ];
 
       handles.forEach(point => {
