@@ -765,6 +765,33 @@ export function Editor() {
     }
   };
 
+  useEffect(() => {
+    // Check for pending publish state
+    try {
+      const pendingPublish = localStorage.getItem('pendingPublish');
+      if (pendingPublish) {
+        const { isPublishing, state } = JSON.parse(pendingPublish);
+        
+        // Restore the state
+        setViewState(state.viewState);
+        setTitleBlockData(state.titleBlockData);
+        setSelectedPageSize(state.selectedPageSize);
+        setNotes(state.notes);
+        setDrawnLines(state.drawnLines);
+        
+        // Clear the pending publish data
+        localStorage.removeItem('pendingPublish');
+        
+        // Trigger save after a short delay to ensure everything is initialized
+        setTimeout(() => {
+          handleSave(isPublishing);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error handling pending publish state:', error);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-screen" onContextMenu={handleContextMenu}>
       <EditorNavbar

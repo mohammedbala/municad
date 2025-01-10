@@ -269,6 +269,31 @@ export function EditorNavbar({
       return;
     }
 
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      // Store current state in localStorage before redirecting
+      try {
+        localStorage.setItem('pendingPublish', JSON.stringify({
+          isPublishing,
+          state: {
+            viewState,
+            titleBlockData,
+            selectedPageSize,
+            notes,
+            drawnLines
+          }
+        }));
+      } catch (error) {
+        console.error('Error saving state to localStorage:', error);
+      }
+      
+      // Redirect to sign in
+      window.location.href = '/signin';
+      return;
+    }
+
     try {
       const success = await saveProject(isPublishing);
       

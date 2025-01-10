@@ -13,19 +13,36 @@ export function SignIn() {
     // Check if user is already signed in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/create');
+        handlePostAuthRedirect();
       }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
-        navigate('/create');
+        handlePostAuthRedirect();
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handlePostAuthRedirect = () => {
+    try {
+      const pendingPublish = localStorage.getItem('pendingPublish');
+      if (pendingPublish) {
+        // Clear the pending publish data
+        localStorage.removeItem('pendingPublish');
+        // Redirect back to editor
+        navigate('/create');
+      } else {
+        navigate('/create');
+      }
+    } catch (error) {
+      console.error('Error handling post-auth redirect:', error);
+      navigate('/create');
+    }
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
