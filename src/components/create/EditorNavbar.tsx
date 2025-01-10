@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SignpostBig, Download, Share2, Settings, Loader2, Search, X, FileDown, FolderOpen } from 'lucide-react';
+import { SignpostBig, Download, Share2, Settings, Loader2, Search, X, FileDown, FolderOpen, UserCircle, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SettingsModal } from './SettingsModal';
 import html2canvas from 'html2canvas';
@@ -145,6 +145,9 @@ export function EditorNavbar({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [userSession, setUserSession] = useState<any>(null);
 
   const { saveProject, isSaving } = useProjectSave({
     canvasManager,
@@ -327,6 +330,41 @@ export function EditorNavbar({
     }
   };
 
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserSession(session);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUserSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // Handle clicks outside of user menu
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      window.location.href = '/signin';
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
     <>
       <div className="bg-white border-b-4 border-[#1E3A8A] py-1">
@@ -422,6 +460,29 @@ export function EditorNavbar({
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>
               </button>
+              {userSession && (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center space-x-2 px-3 py-1.5 hover:bg-gray-100 rounded"
+                  >
+                    <UserCircle className="w-5 h-5 text-[#1E3A8A]" />
+                    <span className="text-sm">{userSession.user.email}</span>
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-[#1E3A8A] rounded shadow-lg z-50">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-left flex items-center space-x-2 hover:bg-blue-50 text-gray-700"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <button 
                 onClick={() => handleSave(true)}
                 disabled={isSaving}
@@ -430,10 +491,10 @@ export function EditorNavbar({
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Publishing...</span>
+                    <span>Saving...</span>
                   </>
                 ) : (
-                  <span>Publish</span>
+                  <span>Save Project</span>
                 )}
               </button>
             </div>
