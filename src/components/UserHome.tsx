@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, FileText, Calendar, Clock, SignpostBig } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Plus, FileText, Calendar, Clock, SignpostBig, UserCircle, LogOut, Trash2, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Map from 'react-map-gl';
 import { supabase } from '../lib/supabase';
@@ -8,7 +8,6 @@ import { DrawnLine, TitleBlockData } from './create/types';
 import { CanvasManager } from './create/canvas/CanvasManager';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibW9iYWxhIiwiYSI6ImNsN2MzdnUyczBja3YzcnBoMmttczNrNmUifQ.EuKfnG_-CrRpAGHPMcC93w';
-const FIXED_USER_ID = '09f43a49-a67f-4945-9fac-909f333f8d8b';
 
 const DEFAULT_VIEW_STATE = {
   longitude: -118.2426,
@@ -47,14 +46,21 @@ export function UserHome() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [userSession, setUserSession] = useState<any>(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchProjects() {
       try {
+        if (!userSession?.user?.id) return;
+
         const { data, error } = await supabase
           .from('projects')
           .select('*')
-          .eq('user_id', FIXED_USER_ID)
+          .eq('user_id', userSession.user.id)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -68,7 +74,42 @@ export function UserHome() {
     }
 
     fetchProjects();
+  }, [userSession]);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserSession(session);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUserSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    // Handle clicks outside of user menu
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      window.location.href = '/signin';
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   function formatDate(dateString: string) {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -77,6 +118,60 @@ export function UserHome() {
       year: 'numeric'
     });
   }
+
+  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation to project
+    if (!window.confirm('Are you sure you want to delete this project?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      // Update local state to remove the deleted project
+      setProjects(projects.filter(p => p.id !== projectId));
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      setError('Failed to delete project');
+    }
+  };
+
+  const toggleSelectMode = () => {
+    setIsSelectMode(!isSelectMode);
+    setSelectedProjects([]);
+  };
+
+  const toggleProjectSelection = (projectId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    setSelectedProjects(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedProjects.length} projects?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .in('id', selectedProjects);
+
+      if (error) throw error;
+
+      setProjects(projects.filter(p => !selectedProjects.includes(p.id)));
+      setSelectedProjects([]);
+      setIsSelectMode(false);
+    } catch (err) {
+      console.error('Error deleting projects:', err);
+      setError('Failed to delete projects');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F0F7FF]">
@@ -88,15 +183,65 @@ export function UserHome() {
               <SignpostBig className="h-8 w-8 text-[#1E3A8A]" />
               <span className="text-2xl font-black text-[#1E3A8A]">MUNICAD</span>
             </Link>
+            
+            {userSession && (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center space-x-2 px-3 py-1.5 hover:bg-gray-100 rounded"
+                >
+                  <UserCircle className="w-5 h-5 text-[#1E3A8A]" />
+                  <span className="text-sm">{userSession.user.email}</span>
+                </button>
+
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-[#1E3A8A] rounded shadow-lg z-50">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left flex items-center space-x-2 hover:bg-blue-50 text-gray-700"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[#1E3A8A]">My Projects</h1>
-          <p className="text-gray-600 mt-2">Manage your traffic control plans and templates</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-[#1E3A8A]">My Projects</h1>
+            <p className="text-gray-600 mt-2">Manage your traffic control plans and templates</p>
+          </div>
+          
+          {!loading && !error && projects.length > 0 && (
+            <div className="flex items-center gap-4">
+              {isSelectMode && selectedProjects.length > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected ({selectedProjects.length})
+                </button>
+              )}
+              <button
+                onClick={toggleSelectMode}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  isSelectMode 
+                    ? 'bg-gray-200 hover:bg-gray-300 text-gray-700' 
+                    : 'border-2 border-[#1E3A8A] text-[#1E3A8A] hover:bg-blue-50'
+                }`}
+              >
+                {isSelectMode ? 'Cancel Selection' : 'Select Multiple'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Loading State */}
@@ -132,9 +277,25 @@ export function UserHome() {
             {projects.map((project) => (
               <Link
                 key={project.id}
-                to={`/create?project=${project.id}`}
-                className="group h-[400px] bg-white border-4 border-[#1E3A8A] rounded-lg overflow-hidden hover:shadow-[8px_8px_0px_0px_rgba(30,58,138,1)] transition-all hover:-translate-x-1 hover:-translate-y-1"
+                to={isSelectMode ? '#' : `/create?project=${project.id}`}
+                className="group relative h-[400px] bg-white border-4 border-[#1E3A8A] rounded-lg overflow-hidden hover:shadow-[8px_8px_0px_0px_rgba(30,58,138,1)] transition-all hover:-translate-x-1 hover:-translate-y-1"
+                onClick={(e) => isSelectMode && toggleProjectSelection(project.id, e)}
               >
+                {/* Add selection overlay */}
+                {isSelectMode && (
+                  <div className={`absolute inset-0 z-10 bg-white/50 flex items-center justify-center ${
+                    selectedProjects.includes(project.id) ? 'bg-blue-100/50' : ''
+                  }`}>
+                    <CheckCircle2 
+                      className={`w-12 h-12 ${
+                        selectedProjects.includes(project.id) 
+                          ? 'text-[#1E3A8A]' 
+                          : 'text-gray-300'
+                      }`} 
+                    />
+                  </div>
+                )}
+
                 {/* Map Preview */}
                 <div className="h-48 relative">
                   <Map
@@ -187,8 +348,12 @@ export function UserHome() {
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <FileText className="w-8 h-8 text-[#1E3A8A]" />
-                    <button className="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1 text-sm text-[#1E3A8A] hover:bg-blue-50 rounded">
-                      •••
+                    <button 
+                      onClick={(e) => handleDeleteProject(project.id, e)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-600 hover:bg-red-50 rounded"
+                      title="Delete project"
+                    >
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                   <h3 className="text-xl font-bold text-[#1E3A8A] mb-4">

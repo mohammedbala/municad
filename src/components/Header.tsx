@@ -1,8 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SignpostBig, Book } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export function Header() {
+  const [userSession, setUserSession] = useState<any>(null);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserSession(session);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUserSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <header className="border-b-8 border-[#1E3A8A]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -25,12 +42,14 @@ export function Header() {
             >
               Sign In
             </Link>
-            <Link 
-              to="/home" 
-              className="border-2 border-[#1E3A8A] text-[#1E3A8A] px-6 py-2 font-bold hover:bg-blue-50 transition-colors"
-            >
-              Home
-            </Link>
+            {userSession && (
+              <Link 
+                to="/home" 
+                className="border-2 border-[#1E3A8A] text-[#1E3A8A] px-6 py-2 font-bold hover:bg-blue-50 transition-colors"
+              >
+                Home
+              </Link>
+            )}
           </div>
         </div>
       </div>

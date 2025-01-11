@@ -19,6 +19,20 @@ import jsPDF from 'jspdf';
 import { ContextMenu } from './ContextMenu';
 import { MAP_STYLES } from './Map';
 
+const PAGE_SIZE_SCALES = {
+  '8.5x11': 1,      // Base scale
+  '11x17': 1.5,     // 50% larger than base
+  '24x36': 3,       // 3x larger than base
+  '30x42': 3.5,     // 3.5x larger than base
+};
+
+const PAGE_SIZES = {
+  '8.5x11': { width: 11, height: 8.5, scale: 1 },
+  '11x17': { width: 17, height: 11, scale: 1.5 },
+  '24x36': { width: 36, height: 24, scale: 3 },
+  '30x42': { width: 42, height: 30, scale: 3.5 }
+};
+
 export function Editor() {
   const [searchParams] = useSearchParams();
   const projectId = searchParams.get('project');
@@ -792,6 +806,35 @@ export function Editor() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const center = [viewState.longitude, viewState.latitude];
+    const pageSize = PAGE_SIZES[selectedPageSize];
+    
+    // Calculate aspect ratio and area factors
+    const baseAspect = PAGE_SIZES['8.5x11'].width / PAGE_SIZES['8.5x11'].height;
+    const newAspect = pageSize.width / pageSize.height;
+    const aspectFactor = newAspect / baseAspect;
+    
+    // Calculate new zoom level considering both scale and aspect ratio
+    const baseZoom = 18;
+    const scaleAdjustment = Math.log2(pageSize.scale);
+    const aspectAdjustment = Math.log2(aspectFactor);
+    const newZoom = baseZoom - scaleAdjustment - aspectAdjustment;
+
+    setViewState(prev => ({
+      ...prev,
+      zoom: newZoom,
+      longitude: center[0],
+      latitude: center[1]
+    }));
+  }, [selectedPageSize]);
+
+  const handlePageSizeChange = (size: string) => {
+    setSelectedPageSize(size);
+  };
+
   return (
     <div className="flex flex-col h-screen" onContextMenu={handleContextMenu}>
       <EditorNavbar
@@ -817,7 +860,7 @@ export function Editor() {
             selectedTool={selectedTool}
             onToolSelect={handleToolSelect}
             selectedPageSize={selectedPageSize}
-            onPageSizeChange={setSelectedPageSize}
+            onPageSizeChange={handlePageSizeChange}
             lineColor={lineColor}
             onLineColorChange={handleLineColorChange}
             fillColor={fillColor}

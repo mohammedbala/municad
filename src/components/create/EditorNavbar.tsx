@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SignpostBig, Download, Share2, Settings, Loader2, Search, X, FileDown, FolderOpen, UserCircle, LogOut } from 'lucide-react';
+import { SignpostBig, Download, Share2, Settings, Loader2, Search, X, FileDown, FolderOpen, UserCircle, LogOut, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SettingsModal } from './SettingsModal';
 import html2canvas from 'html2canvas';
@@ -40,6 +40,12 @@ interface UseProjectSaveProps {
   currentProjectId: string | null;
   setCurrentProjectId: (id: string | null) => void;
   drawnLines: DrawnLine[];
+}
+
+interface SaveFeedbackState {
+  isVisible: boolean;
+  status: 'saving' | 'success';
+  lastSaved?: Date;
 }
 
 const USER_ID = '09f43a49-a67f-4945-9fac-909f333f8d8b';
@@ -148,6 +154,11 @@ export function EditorNavbar({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [userSession, setUserSession] = useState<any>(null);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedbackState>({
+    isVisible: false,
+    status: 'saving',
+    lastSaved: undefined
+  });
 
   const { saveProject, isSaving } = useProjectSave({
     canvasManager,
@@ -297,11 +308,29 @@ export function EditorNavbar({
       return;
     }
 
+    // Show saving feedback
+    setSaveFeedback({ isVisible: true, status: 'saving' });
+
     try {
       const success = await saveProject(isPublishing);
       
       if (success) {
-        alert(isPublishing ? 'Project published successfully!' : 'Project saved successfully!');
+        // Update lastSaved time when save is successful
+        setSaveFeedback({ 
+          isVisible: true, 
+          status: 'success',
+          lastSaved: new Date()
+        });
+        
+        setTimeout(() => {
+          setSaveFeedback(prev => ({ 
+            isVisible: false, 
+            status: 'saving',
+            lastSaved: prev.lastSaved // Preserve the last saved time
+          }));
+        }, 2000);
+      } else {
+        throw new Error('Save failed');
       }
     } catch (error) {
       console.error('Error saving project:', error);
@@ -310,6 +339,7 @@ export function EditorNavbar({
           ? 'Failed to publish project. Please try again later.' 
           : 'Failed to save project. Please try again later.'
       );
+      setSaveFeedback({ isVisible: false, status: 'saving' });
     }
   };
 
@@ -365,13 +395,32 @@ export function EditorNavbar({
     }
   };
 
+  // Helper function to format the last saved time
+  const formatLastSaved = (date?: Date) => {
+    if (!date) return '';
+    
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'Last saved just now';
+    if (minutes === 1) return 'Last saved 1 minute ago';
+    if (minutes < 60) return `Last saved ${minutes} minutes ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours === 1) return 'Last saved 1 hour ago';
+    if (hours < 24) return `Last saved ${hours} hours ago`;
+    
+    return `Last saved ${date.toLocaleDateString()}`;
+  };
+
   return (
     <>
-      <div className="bg-white border-b-4 border-[#1E3A8A] py-1">
+      <div className="bg-white border-b-4 border-[#1E3A8A] py-2">
         <div className="mx-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-6">
-              <Link to="/" className="flex items-center space-x-2">
+              <Link to="/landing" className="flex items-center space-x-2">
                 <SignpostBig className="h-6 w-6 text-[#1E3A8A]" />
                 <span className="text-xl font-black text-[#1E3A8A]">MUNICAD</span>
               </Link>
@@ -429,13 +478,15 @@ export function EditorNavbar({
             </div>
 
             <div className="flex items-center space-x-3">
-              <Link 
-                to="/home"
-                className="flex items-center space-x-1 px-3 py-1.5 hover:bg-gray-100 rounded text-sm"
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>My Projects</span>
-              </Link>
+              {userSession && (
+                <Link 
+                  to="/home"
+                  className="flex items-center space-x-1 px-3 py-1.5 hover:bg-gray-100 rounded text-sm"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>My Projects</span>
+                </Link>
+              )}
 
               {/* Export Button */}
               <button
@@ -460,6 +511,36 @@ export function EditorNavbar({
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>
               </button>
+              <div className="relative h-[48px] flex flex-col justify-center">
+                <button 
+                  onClick={() => handleSave(true)}
+                  disabled={isSaving || saveFeedback.isVisible}
+                  className="bg-[#1E3A8A] text-white px-4 py-1.5 text-sm font-bold hover:bg-[#2563EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {saveFeedback.isVisible ? (
+                    <>
+                      {saveFeedback.status === 'saving' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                          <span>Saved!</span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span>Save Project</span>
+                  )}
+                </button>
+                {saveFeedback.lastSaved && (
+                  <div className="absolute -bottom-1.5 left-0 text-[10px] text-gray-500 mt-1">
+                    {formatLastSaved(saveFeedback.lastSaved)}
+                  </div>
+                )}
+              </div>
               {userSession && (
                 <div className="relative" ref={userMenuRef}>
                   <button
@@ -483,20 +564,6 @@ export function EditorNavbar({
                   )}
                 </div>
               )}
-              <button 
-                onClick={() => handleSave(true)}
-                disabled={isSaving}
-                className="bg-[#1E3A8A] text-white px-4 py-1.5 text-sm font-bold hover:bg-[#2563EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <span>Save Project</span>
-                )}
-              </button>
             </div>
           </div>
         </div>
